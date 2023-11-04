@@ -17,4 +17,6 @@ np.savez('./{}.npz'.format(DATASET),data=data)
     1、不同的holiday和weekend组合方式
     2、不同的正则化方式
     3、
+相关命令：
+    1、git add --ignore-errors .忽略文件
 '''

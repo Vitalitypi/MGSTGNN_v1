@@ -13,35 +13,42 @@ class Encoder(nn.Module):
             in_steps=12,
             out_steps=12,
             steps_per_day=288,
-            input_dim=4,                        # flow, day, week, holiday
-            output_dim=1,
+            input_dim=4,                        # flow, day, weekend, holiday
+            output_dim=1,                       # flow
+
             input_embedding_dim=80,
             tod_embedding_dim=24,
-            dow_embedding_dim=8,
+            weekend_embedding_dim=6,
+            holiday_embedding_dim=2,
             spatial_embedding_dim=0,
-            use_mixed_proj=True,
-            dim_embed_feature=80,              # embedding dimension of features
+            adaptive_embedding_dim=8,
+            dim_embed_feature=120,              # embedding dimension of features
     ):
         super(Encoder, self).__init__()
-        # encoder
+        assert dim_embed_feature == input_embedding_dim+tod_embedding_dim+weekend_embedding_dim + \
+               holiday_embedding_dim+spatial_embedding_dim+adaptive_embedding_dim
+
+        self.num_nodes = num_nodes
         self.steps_per_day = steps_per_day
         # 输入的embedding维度
         self.input_embedding_dim = input_embedding_dim
         # 每天的embedding维度
         self.tod_embedding_dim = tod_embedding_dim
         # 每周的embedding维度
-        self.dow_embedding_dim = dow_embedding_dim
+        self.weekend_embedding_dim = weekend_embedding_dim
+        self.holiday_embedding_dim = holiday_embedding_dim
         # 空间的embedding维度
         self.spatial_embedding_dim = spatial_embedding_dim
         # 自适应的embedding维度
-        self.adaptive_embedding_dim = dim_embed_feature-input_embedding_dim-tod_embedding_dim-dow_embedding_dim-spatial_embedding_dim
+        self.adaptive_embedding_dim = adaptive_embedding_dim
         # 编码后的总维度
         self.model_dim = (
                 input_embedding_dim
                 + tod_embedding_dim
-                + dow_embedding_dim
+                + weekend_embedding_dim
+                + holiday_embedding_dim
                 + spatial_embedding_dim
-                + self.adaptive_embedding_dim
+                + adaptive_embedding_dim
         )
         self.in_steps = in_steps
         self.out_steps = out_steps
@@ -52,28 +59,17 @@ class Encoder(nn.Module):
         # 每天的embedding
         self.tod_embedding = nn.Embedding(steps_per_day, tod_embedding_dim)
         # 每周的embedding
-        self.dow_embedding = nn.Embedding(2, (dow_embedding_dim * 3) // 4)
+        self.weekend_embedding = nn.Embedding(2, weekend_embedding_dim)
         # 节日的embedding
-        self.hol_embedding = nn.Embedding(2, dow_embedding_dim // 4)
+        self.holiday_embedding = nn.Embedding(2, holiday_embedding_dim)
         # 节点的embedding
         self.node_emb = nn.Parameter(
             torch.empty(num_nodes, self.spatial_embedding_dim)
         )
-        self.num_nodes = num_nodes
-        self.use_mixed_proj = use_mixed_proj
         nn.init.xavier_uniform_(self.node_emb)
         self.adaptive_embedding = nn.init.xavier_uniform_(
             nn.Parameter(torch.empty(in_steps, num_nodes, self.adaptive_embedding_dim))
         )
-        if use_mixed_proj:
-            self.output_proj = nn.Linear(
-                in_steps * self.model_dim, out_steps * output_dim
-            )
-        else:
-            self.temporal_proj = nn.Linear(in_steps, out_steps)
-            self.output_proj = nn.Linear(self.model_dim, self.output_dim)
-        self.skip = nn.Linear(input_dim,dim_embed_feature)
-        self.ln = nn.LayerNorm(dim_embed_feature)
     def forward(self,x):
         '''
         将输入x映射到高维空间
@@ -82,14 +78,14 @@ class Encoder(nn.Module):
         :return:
         shape:b,to,n,do
         '''
-        residual = x
         batch_size = x.shape[0]
 
         if self.tod_embedding_dim > 0:
             tod = x[..., 1]
-        if self.dow_embedding_dim > 0:
-            dow = x[..., 2]
-            hol = x[..., 3]
+        if self.weekend_embedding_dim > 0:
+            weekend = x[..., 2]
+        if self.holiday_embedding_dim > 0:
+            holiday = x[..., 3]
         x = x[..., : self.input_dim]
         x = self.input_proj(x)  # (batch_size, in_steps, num_nodes, input_embedding_dim)
         features = [x]
@@ -98,15 +94,16 @@ class Encoder(nn.Module):
                 (tod * self.steps_per_day).long()
             )  # (batch_size, in_steps, num_nodes, tod_embedding_dim)
             features.append(tod_emb)
-        if self.dow_embedding_dim > 0:
-            dow_emb = self.dow_embedding(
-                dow.long()
-            )  # (batch_size, in_steps, num_nodes, dow_embedding_dim)
-            features.append(dow_emb)
-            hol_emb = self.hol_embedding(
-                hol.long()
+        if self.weekend_embedding_dim > 0:
+            weekend_emb = self.weekend_embedding(
+                weekend.long()
+            )  # (batch_size, in_steps, num_nodes, weekend_embedding_dim)
+            features.append(weekend_emb)
+        if self.holiday_embedding_dim > 0:
+            holiday_emb = self.holiday_embedding(
+                holiday.long()
             )
-            features.append(hol_emb)
+            features.append(holiday_emb)
         if self.spatial_embedding_dim > 0:
             spatial_emb = self.node_emb.expand(
                 batch_size, self.in_steps, *self.node_emb.shape
@@ -403,7 +400,7 @@ class GAT(nn.Module):
         x = x.squeeze(1)
         return x
 
-class EAGNN(nn.Module):
+class MGSTGNN(nn.Module):
     def __init__(
             self,
             num_nodes,
@@ -415,9 +412,8 @@ class EAGNN(nn.Module):
             rnn_units,
             rnn_layers,
             dim_embed_feature=120,
-
     ):
-        super(EAGNN, self).__init__()
+        super(MGSTGNN, self).__init__()
         # encoder
         self.encoder = Encoder(num_nodes,dim_embed_feature=dim_embed_feature,input_dim=input_dim)
         self.dstgnn = DSTGNN(num_nodes,dim_embed_feature+input_dim,rnn_units,output_dim,in_steps,out_steps,rnn_layers,dim_embed)
@@ -429,9 +425,8 @@ class EAGNN(nn.Module):
         return out
 
 if __name__ == "__main__":
-    # 测试GlobalTime
     # encoder = Encoder(307,4)
     dstgnn = DSTGNN(307,4,32,1,12,12,2,6)
-    eagnn = EAGNN(307,4,1,12,12,8,32,2)
+    mgstgnn = MGSTGNN(307,4,1,12,12,8,32,2)
 
-    summary(eagnn, [64, 12, 307, 4])
+    summary(mgstgnn, [64, 12, 307, 4])
