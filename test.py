@@ -19,4 +19,6 @@ np.savez('./{}.npz'.format(DATASET),data=data)
     3、
 相关命令：
     1、git add --ignore-errors .忽略文件
+其他：
+    1、生成周期数据只是用训练集
 '''

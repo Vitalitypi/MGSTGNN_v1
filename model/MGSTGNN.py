@@ -1,4 +1,3 @@
-import math
 import numpy as np
 import torch
 from torch import nn
@@ -10,30 +9,30 @@ class Encoder(nn.Module):
     def __init__(
             self,
             num_nodes,
-            in_steps=12,
-            out_steps=12,
-            steps_per_day=288,
-            input_dim=4,                        # flow, day, weekend, holiday
-            output_dim=1,                       # flow
+            input_embedding_dim,
+            periods_embedding_dim,
+            weekend_embedding_dim,
+            holiday_embedding_dim,
+            spatial_embedding_dim,
+            adaptive_embedding_dim,
+            dim_embed_feature,              # embedding dimension of features
+            input_dim,                      # flow, day, weekend, holiday
 
-            input_embedding_dim=80,
-            tod_embedding_dim=24,
-            weekend_embedding_dim=6,
-            holiday_embedding_dim=2,
-            spatial_embedding_dim=0,
-            adaptive_embedding_dim=8,
-            dim_embed_feature=120,              # embedding dimension of features
+            periods,
+            in_steps=12,
     ):
         super(Encoder, self).__init__()
-        assert dim_embed_feature == input_embedding_dim+tod_embedding_dim+weekend_embedding_dim + \
-               holiday_embedding_dim+spatial_embedding_dim+adaptive_embedding_dim
+
+        assert dim_embed_feature == input_embedding_dim+sum(periods_embedding_dim)+weekend_embedding_dim + \
+               holiday_embedding_dim+spatial_embedding_dim+adaptive_embedding_dim , \
+            'The total dimension is not equal to the sum of the each dimension! '
 
         self.num_nodes = num_nodes
-        self.steps_per_day = steps_per_day
+        self.num_periods = len(periods)
         # 输入的embedding维度
         self.input_embedding_dim = input_embedding_dim
-        # 每天的embedding维度
-        self.tod_embedding_dim = tod_embedding_dim
+        # 周期的embedding维度
+        self.periods_embedding_dim = periods_embedding_dim
         # 每周的embedding维度
         self.weekend_embedding_dim = weekend_embedding_dim
         self.holiday_embedding_dim = holiday_embedding_dim
@@ -44,20 +43,20 @@ class Encoder(nn.Module):
         # 编码后的总维度
         self.model_dim = (
                 input_embedding_dim
-                + tod_embedding_dim
+                + sum(periods_embedding_dim)
                 + weekend_embedding_dim
                 + holiday_embedding_dim
                 + spatial_embedding_dim
                 + adaptive_embedding_dim
         )
         self.in_steps = in_steps
-        self.out_steps = out_steps
         self.input_dim = input_dim
-        self.output_dim = output_dim
         # 输入数据的映射
         self.input_proj = nn.Linear(input_dim, input_embedding_dim)
-        # 每天的embedding
-        self.tod_embedding = nn.Embedding(steps_per_day, tod_embedding_dim)
+        # period的embedding
+        self.periods_embedding = nn.ModuleList([
+            nn.Embedding(periods[i], periods_embedding_dim[i]) for i in range(self.num_periods)
+        ])
         # 每周的embedding
         self.weekend_embedding = nn.Embedding(2, weekend_embedding_dim)
         # 节日的embedding
@@ -70,6 +69,16 @@ class Encoder(nn.Module):
         self.adaptive_embedding = nn.init.xavier_uniform_(
             nn.Parameter(torch.empty(in_steps, num_nodes, self.adaptive_embedding_dim))
         )
+
+        # if use_mixed_proj:
+        #     self.output_proj = nn.Linear(
+        #         in_steps * self.model_dim, out_steps * output_dim
+        #     )
+        # else:
+        #     self.temporal_proj = nn.Linear(in_steps, out_steps)
+        #     self.output_proj = nn.Linear(self.model_dim, self.output_dim)
+        # self.skip = nn.Linear(input_dim,dim_embed_feature)
+        # self.ln = nn.LayerNorm(dim_embed_feature)
     def forward(self,x):
         '''
         将输入x映射到高维空间
@@ -79,21 +88,26 @@ class Encoder(nn.Module):
         shape:b,to,n,do
         '''
         batch_size = x.shape[0]
-
-        if self.tod_embedding_dim > 0:
-            tod = x[..., 1]
+        periods = []
+        index = 1
+        for i in range(self.num_periods):
+            periods.append(x[..., index])
+            index+=1
         if self.weekend_embedding_dim > 0:
-            weekend = x[..., 2]
+            weekend = x[..., index]
+            index+=1
         if self.holiday_embedding_dim > 0:
-            holiday = x[..., 3]
+            holiday = x[..., index]
+            index+=1
         x = x[..., : self.input_dim]
         x = self.input_proj(x)  # (batch_size, in_steps, num_nodes, input_embedding_dim)
         features = [x]
-        if self.tod_embedding_dim > 0:
-            tod_emb = self.tod_embedding(
-                (tod * self.steps_per_day).long()
-            )  # (batch_size, in_steps, num_nodes, tod_embedding_dim)
-            features.append(tod_emb)
+        for i in range(self.num_periods):
+            period = periods[i]
+            period_emb = self.periods_embedding[i](
+                period.long()
+            )
+            features.append(period_emb)
         if self.weekend_embedding_dim > 0:
             weekend_emb = self.weekend_embedding(
                 weekend.long()
@@ -118,20 +132,22 @@ class Encoder(nn.Module):
 
         return x
 
-class DSTGNN(nn.Module):
+class MGSTGNN(nn.Module):
     def __init__(
             self,
+            adj,                    # 邻接矩阵
+            dis,                    # 距离矩阵
             num_nodes,              #节点数
             input_dim,              #输入维度
             rnn_units,              #GRU循环单元数
             output_dim,             #输出维度
-            in_steps,               #输入的时间长度
-            out_steps,              #预测的时间长度
             num_layers,             #GRU的层数
             embed_dim,              #GNN嵌入维度
             recent_stamp=2,
+            in_steps=12,               #输入的时间长度
+            out_steps=12,              #预测的时间长度
     ):
-        super(DSTGNN, self).__init__()
+        super(MGSTGNN, self).__init__()
         self.num_node = num_nodes
         self.input_dim = input_dim
         self.hidden_dim = rnn_units
@@ -141,12 +157,9 @@ class DSTGNN(nn.Module):
         self.num_layers = num_layers
         self.embed_dim = embed_dim
 
-        self.node_embeddings = nn.Parameter(torch.randn(self.num_node, embed_dim), requires_grad=True)
-        self.time_embeddings = nn.Parameter(torch.randn(self.in_steps, embed_dim), requires_grad=True)
+        self.encoder = DSTRNN(adj, dis, num_nodes, input_dim, rnn_units, embed_dim, num_layers, in_steps)
 
-        self.encoder = DSTRNN(num_nodes, input_dim, rnn_units, embed_dim, num_layers)
-
-        self.layernorm = nn.LayerNorm(self.hidden_dim, eps=1e-12)
+        self.norm = nn.LayerNorm(self.hidden_dim, eps=1e-12)
         self.out_dropout = nn.Dropout(0.1)
 
         self.end_conv = nn.Conv2d(recent_stamp, out_steps * self.output_dim, kernel_size=(1, self.hidden_dim), bias=True)
@@ -156,8 +169,8 @@ class DSTGNN(nn.Module):
         b,t,n,d = source.size()
         # source: B, T, N, D
         init_state = self.encoder.init_hidden(source.shape[0])#,self.num_node,self.hidden_dim
-        output, _ = self.encoder(source, init_state, self.node_embeddings, self.time_embeddings) # B, T, N, hidden
-        output = self.out_dropout(self.layernorm(output[:, -self.recent_stamp:, :, :])) # B, r, N, hidden
+        output, _ = self.encoder(source, init_state) # B, T, N, hidden
+        output = self.out_dropout(self.norm(output[:, -self.recent_stamp:, :, :])) # B, r, N, hidden
 
         # CNN based predictor
         output = self.end_conv((output)) # B, T*C, N, d'
@@ -168,22 +181,24 @@ class DSTGNN(nn.Module):
         return output
 
 class DSTRNN(nn.Module):
-    def __init__(self, node_num, dim_in, dim_out, embed_dim, num_layers=1, num_gru=2, num_norms=12):
+    def __init__(self, adj, dis, node_num, dim_in, dim_out, embed_dim, num_layers=1, in_steps=12):
         super(DSTRNN, self).__init__()
         assert num_layers >= 1, 'At least one GRU layer in the Encoder.'
         self.node_num = node_num
         self.input_dim = dim_in
         self.num_layers = num_layers
+        self.num_gru = num_layers - 1
         self.dim_out = dim_out
         self.gru0 = GRUCell(node_num, dim_in, dim_out, embed_dim)
         self.grus = nn.ModuleList([
             GRUCell(node_num, dim_out, dim_out, embed_dim)
-            for _ in range(num_gru)
+            for _ in range(self.num_gru)
         ])
-        self.num_gru = num_gru
-        self.gats = nn.ModuleList([GAT(dim_in,dim_out) for _ in range(num_norms)])
-        self.norms = nn.ModuleList([nn.LayerNorm(dim_out) for _ in range(num_norms)])
-    def forward(self, x, init_state, node_embeddings, time_embeddings):
+        self.gats = nn.ModuleList([GAT(adj, dis, dim_in, dim_out) for _ in range(in_steps)])
+        self.norms = nn.ModuleList([nn.LayerNorm(dim_out) for _ in range(in_steps)])
+        self.node_embeddings = nn.Parameter(torch.randn(self.node_num, embed_dim), requires_grad=True)
+        self.time_embeddings = nn.Parameter(torch.randn(in_steps, embed_dim), requires_grad=True)
+    def forward(self, x, init_state):
         # shape of x: (B, T, N, D)
         # shape of init_state: (num_layers, B, N, hidden_dim)
         assert x.shape[2] == self.node_num and x.shape[3] == self.input_dim
@@ -194,7 +209,7 @@ class DSTRNN(nn.Module):
         inner_states = []
         prev = x[:,0]
         for t in range(seq_length):
-            state = self.gru0(current_inputs[:, t, :, :], state, node_embeddings, time_embeddings[t]) # [B, N, hidden_dim]
+            state = self.gru0(current_inputs[:, t, :, :], state, self.node_embeddings, self.time_embeddings[t]) # [B, N, hidden_dim]
             # inner_states.append(state)
             att = self.gats[t](current_inputs[:, t, :, :], prev)
             inner_states.append(self.norms[t](state+att))
@@ -202,19 +217,19 @@ class DSTRNN(nn.Module):
             prev = x[:,t]
         base_state = state
         current_inputs = torch.stack(inner_states, dim=1) # [B, T, N, D]
-        states = [init_state[1] for _ in range(self.num_gru)]
+        states = [init_state[i+1] for i in range(self.num_gru)]
         for t in range(seq_length):
             gru = self.grus[t%self.num_gru]
             prev_state = states[t%self.num_gru]
-            states[t%self.num_gru] = gru(current_inputs[:, t, :, :], prev_state, node_embeddings, time_embeddings[t]) # [B, N, hidden_dim]
+            states[t%self.num_gru] = gru(current_inputs[:, t, :, :], prev_state, self.node_embeddings, self.time_embeddings[t]) # [B, N, hidden_dim]
         states.append(base_state)
         current_inputs = torch.stack(states, dim=1) # [B, num_gru+1, N, D]
         return current_inputs, output_hidden
 
     def init_hidden(self, batch_size):
-        init_states = []
-        for i in range(self.num_layers):
-            init_states.append(self.gru0.init_hidden_state(batch_size))
+        init_states = [self.gru0.init_hidden_state(batch_size)]
+        for i in range(self.num_gru):
+            init_states.append(self.grus[i].init_hidden_state(batch_size))
         return torch.stack(init_states, dim=0) # (num_layers, B, N, hidden_dim)
 
 class GRUCell(nn.Module):
@@ -248,20 +263,16 @@ class GCN(nn.Module):
         self.node_num = node_num
         self.weights_pool = nn.Parameter(torch.FloatTensor(embed_dim, 2, dim_in, dim_out)) # [D, C, F]
         self.bias_pool = nn.Parameter(torch.FloatTensor(embed_dim, dim_out)) # [D, F]
-        # self.adj,dis = get_adj_dis_matrix('./dataset/PEMS04/PEMS04.csv', 307, False)
-        # self.dis = dis/np.max(dis)
-        self.layernorm = nn.LayerNorm(embed_dim, eps=1e-12)
-        self.embs_dropout = nn.Dropout(0.1)
+        self.norm = nn.LayerNorm(embed_dim, eps=1e-12)
+        self.drop = nn.Dropout(0.1)
     def forward(self, x, node_embeddings, time_embeddings):
         # x shaped[B, N, C], node_embeddings shaped [N, D], embedding shaped [N, N]
         # output shape [B, N, C]
-        node_embeddings = self.embs_dropout(
-            self.layernorm(node_embeddings + time_embeddings.unsqueeze(0)))  # torch.mul(node_embeddings, node_time)
+        I = torch.eye(self.node_num).to(x.device)
+        node_embeddings = self.drop(
+            self.norm(node_embeddings + time_embeddings.unsqueeze(0)))  # torch.mul(node_embeddings, node_time)
         embedding = F.softmax(torch.mm(node_embeddings, node_embeddings.transpose(0, 1)), dim=1)
-        # emb = embedding+torch.eye(self.node_num).to(x.device)
-        # adj = torch.tensor(self.adj).to(x.device)
-        # dis = torch.tensor(self.dis).to(x.device).to(torch.float)
-        support_set = [torch.eye(self.node_num).to(x.device), embedding]
+        support_set = [I, embedding]
         supports = torch.stack(support_set, dim=0)  # [3, N, N]
         weights = torch.einsum('nd,dkio->nkio', node_embeddings, self.weights_pool) # N, dim_in, dim_out
         bias = torch.matmul(node_embeddings, self.bias_pool) # N, dim_out
@@ -275,17 +286,17 @@ class GraphAttentionLayer(nn.Module):
     """
     Simple GAT layer, similar to https://arxiv.org/abs/1710.10903
     """
-    def __init__(self, in_features, out_features, dropout, alpha, num_nodes=307, concat=True, dataset='PEMS04'):
+    def __init__(self, adj, dis, in_features, out_features, dropout, alpha, concat=True, device_id=0):
         super(GraphAttentionLayer, self).__init__()
         self.dropout = dropout
         self.in_features = in_features
         self.out_features = out_features
         self.alpha = alpha
         self.concat = concat
-        self.num_nodes = num_nodes
-        adj,dis = get_adj_dis_matrix("PEMS04".format(dataset,dataset),num_nodes)
+        self.num_nodes = adj.shape[0]
+        device = torch.device("cuda", device_id)
         I = torch.eye(self.num_nodes)
-        adj = torch.Tensor(adj)
+        adj = torch.Tensor(adj).to(device)
         adj = F.pad(
                 adj,
                 (self.num_nodes,0,self.num_nodes,0),
@@ -296,7 +307,7 @@ class GraphAttentionLayer(nn.Module):
         adj[:self.num_nodes,:self.num_nodes] = adj[self.num_nodes:,self.num_nodes:]
 
         self.adj = adj
-        dis = torch.Tensor(dis/np.max(dis))
+        dis = torch.Tensor(dis/np.max(dis)).to(device)
         dis = F.pad(
                 dis,
                 (self.num_nodes,0,self.num_nodes,0),
@@ -378,11 +389,11 @@ class Mlp(nn.Module):
 
 class GAT(nn.Module):
     def __init__(
-            self, dim_in, dim_out, dim_hidden=256, dropout=0.6, heads=1, alpha=0.2,bias=True):
+            self, adj, dis, dim_in, dim_out, dim_hidden=256, dropout=0.6, heads=1, alpha=0.2, num_x=2, bias=True):
         super(GAT, self).__init__()
         self.dropout = dropout
-        self.attentions = [GraphAttentionLayer(dim_in, dim_hidden, dropout=dropout, alpha=alpha, concat=True) for _ in range(heads)]
-        self.output = Mlp(dim_hidden*heads*2,dim_hidden,dim_out)
+        self.attentions = [GraphAttentionLayer(adj, dis, dim_in, dim_hidden, dropout=dropout, alpha=alpha, concat=True) for _ in range(heads)]
+        self.output = Mlp(dim_hidden*heads*num_x, dim_hidden, dim_out)
         # self.output = nn.Conv2d(dim_hidden*heads*2, dim_out, kernel_size=(1,1), bias=bias)
     def forward(self, x, xt):
         '''
@@ -400,9 +411,10 @@ class GAT(nn.Module):
         x = x.squeeze(1)
         return x
 
-class MGSTGNN(nn.Module):
+class Network(nn.Module):
     def __init__(
             self,
+            dataset,
             num_nodes,
             input_dim,
             output_dim,
@@ -411,22 +423,37 @@ class MGSTGNN(nn.Module):
             dim_embed,
             rnn_units,
             rnn_layers,
-            dim_embed_feature=120,
+
+            # Encoder configuration
+            input_embedding_dim,
+            periods_embedding_dim,
+            weekend_embedding_dim,
+            holiday_embedding_dim,
+            spatial_embedding_dim,
+            adaptive_embedding_dim,
+            dim_embed_feature,
+            periods,
+
+
     ):
-        super(MGSTGNN, self).__init__()
+        super(Network, self).__init__()
         # encoder
-        self.encoder = Encoder(num_nodes,dim_embed_feature=dim_embed_feature,input_dim=input_dim)
-        self.dstgnn = DSTGNN(num_nodes,dim_embed_feature+input_dim,rnn_units,output_dim,in_steps,out_steps,rnn_layers,dim_embed)
+        self.encoder = Encoder(num_nodes,input_embedding_dim,periods_embedding_dim,weekend_embedding_dim,
+                               holiday_embedding_dim,spatial_embedding_dim,adaptive_embedding_dim,
+                               dim_embed_feature,input_dim,periods)
+        adj, dis = get_adj_dis_matrix(dataset, num_nodes)
+        self.mgstgnn = MGSTGNN(adj,dis,num_nodes,dim_embed_feature+input_dim,rnn_units,output_dim,
+                               rnn_layers,dim_embed,in_steps=in_steps,out_steps=out_steps)
     def forward(self,x):
         # 进行encoding
         enc = self.encoder(x)
         dat = torch.cat((x,enc),dim=-1)
-        out = self.dstgnn(dat)
+        out = self.mgstgnn(dat)
         return out
 
 if __name__ == "__main__":
-    # encoder = Encoder(307,4)
-    dstgnn = DSTGNN(307,4,32,1,12,12,2,6)
-    mgstgnn = MGSTGNN(307,4,1,12,12,8,32,2)
+    periods_dim = [24]
+    periods_arr = [288]
+    network = Network('PEMS04',307,4,1,12,12,8,32,3,80,periods_dim,6,2,0,8,120,periods_arr)
 
-    summary(mgstgnn, [64, 12, 307, 4])
+    summary(network, [64, 12, 307, 4])
