@@ -1,17 +1,16 @@
 import numpy as np
 import csv
 
-HOP_K = 1
-DATASET = 'PEMS04'
 
-# get basic flow data
-flow_data = np.load('../dataset/{}/{}.npz'.format(DATASET,DATASET))['data']
-flow_data = flow_data[...,:1]
-print(flow_data.shape)
-time_stamps,num_nodes,dim = flow_data.shape
 
-def generate_weather():
-    min_max = get_min_max()
+
+def generate_weather(DATASET):
+    # get basic flow data
+    flow_data = np.load('../dataset/{}/{}.npz'.format(DATASET,DATASET))['data']
+    flow_data = flow_data[...,:1]
+    print(flow_data.shape)
+    time_stamps,num_nodes,dim = flow_data.shape
+    min_max = get_min_max(DATASET)
     print("The maximums are: ",min_max[1])
     weas = []
     with open('../dataset/{}/weather.csv'.format(DATASET), 'r', encoding='gbk') as f:
@@ -29,14 +28,14 @@ def generate_weather():
     print('Finished! The data shape is: ',weas.shape)
     np.savez('../dataset/{}/weather.npz'.format(DATASET), data=weas)
 
-def test_weather():
+def test_weather(DATASET):
     info = np.load('../dataset/{}/weather.npz'.format(DATASET))['data']
     for i in range(info.shape[0]//288):
         for j in range(info.shape[1]):
             print(info[i*288,j])
             break
 
-def get_min_max():
+def get_min_max(DATASET):
     with open('../dataset/{}/weather.csv'.format(DATASET), 'r', encoding='gbk') as f:
             f.readline()
             reader = csv.reader(f)
@@ -60,4 +59,4 @@ def get_min_max():
             print('The maximums are: ',mx1,mx2,mx3)
     return [[mn1,mn2,mn3],[mx1,mx2,mx3]]
 
-generate_weather()
+# generate_weather('PEMS04')

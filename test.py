@@ -1,11 +1,9 @@
 import numpy as np
-DATASET='PEMS08'
-data = np.load('./dataset/{}/{}.npz'.format(DATASET,DATASET))['data']
 
-# data = (data[...,:1]).astype(int)
-print(data.dtype)
-np.savez('./{}.npz'.format(DATASET),data=data)
-
+x = np.ones((16,12,3))[...,:0]
+y = np.ones((16,12,3))
+z = np.concatenate([x,y],axis=-1)
+print(z.shape,x)
 # PEMS03 (26208, 358, 1)
 # PEMS04 (16992, 307, 1)
 # PEMS07 (28224, 883, 1)

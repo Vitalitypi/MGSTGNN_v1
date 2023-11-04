@@ -1,15 +1,6 @@
 import csv
 import numpy as np
 
-HOP_K = 1
-DATASET = 'PEMS04'
-
-# get basic flow data
-flow_data = np.load('../dataset/{}/{}.npz'.format(DATASET,DATASET))['data']
-flow_data = flow_data[...,:1]
-print(flow_data.shape)
-time_stamps,num_nodes,dim = flow_data.shape
-
 max_dict = {
     'PEMS03': 10.194,
     'PEMS04': 2712.1,
@@ -17,7 +8,7 @@ max_dict = {
     'PEMS08': 3274.4
 }
 
-def open_graph(filename, num_of_vertices, direction=False):
+def open_graph(DATASET,filename, num_of_vertices, direction=False):
     adj = np.zeros((int(num_of_vertices), int(num_of_vertices)), dtype=np.float32)
     dis = np.zeros((int(num_of_vertices), int(num_of_vertices)), dtype=np.float32)
     with open(filename, 'r') as f:
@@ -34,9 +25,15 @@ def open_graph(filename, num_of_vertices, direction=False):
                     dis[j, i] = max_dict[DATASET]/distance
     return adj,dis
 
-def generate_hop():
+def generate_hop(DATASET,HOP_K):
+    # get basic flow data
+    flow_data = np.load('../dataset/{}/{}.npz'.format(DATASET,DATASET))['data']
+    flow_data = flow_data[...,:1]
+    print(flow_data.shape)
+    time_stamps,num_nodes,dim = flow_data.shape
+
     csv_name = '../dataset/{}/{}.csv'.format(DATASET,DATASET)
-    adj,dis = open_graph(csv_name,num_nodes)
+    adj,dis = open_graph(DATASET,csv_name,num_nodes)
     dis = dis/np.max(dis)
     # 定义想要生成的文件
     hops = np.zeros((time_stamps,num_nodes,HOP_K))
@@ -61,15 +58,17 @@ def generate_hop():
         hops[...,k] = (hops[...,k]-mean)/std
         A = np.dot(A,adj)
     # 保存文件
-    np.savez('../dataset/{}/hops_{}.npz'.format(DATASET,HOP_K),data=hops)
+    np.savez('../dataset/{}/hop.npz'.format(DATASET),data=hops)
 
-def test():
+def test(DATASET):
     # csv_name = '../dataset/{}/{}.csv'.format(DATASET,DATASET)
     # open_graph(csv_name,num_nodes)
-    hops = np.load('../dataset/{}/hops_{}.npz'.format(DATASET,HOP_K))['data']
+    hops = np.load('../dataset/{}/hop.npz'.format(DATASET))['data']
     print(hops[:10,0,0])
     # [-0.37989923 -0.39155981 -0.36349649 -0.31860226 -0.29351812 -0.27729293 -0.23883943 -0.27468301 -0.24360124 -0.25215458]
     # [-0.99063989 -0.99149587 -0.9894358  -0.98614021 -0.98429884 -0.98310778 -0.98028499 -0.98291619 -0.98063454 -0.98126242]
-test()
-# generate_hop()
+
+# test('PEMS04')
+
+# generate_hop('PEMS04',1)
 

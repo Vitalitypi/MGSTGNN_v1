@@ -2,24 +2,21 @@ import numpy as np
 import datetime as dt
 from datetime import datetime
 
-DATASET = 'PEMS04'
-
-# get basic flow data
-flow_data = np.load('../dataset/{}/{}.npz'.format(DATASET,DATASET))['data']
-flow_data = flow_data[...,:1]
-print(flow_data.shape)
-time_stamps,num_nodes,dim = flow_data.shape
-
 day_dict = {
     'PEMS03':'2018-09-01',
     'PEMS04':'2018-01-01',
     'PEMS07':'2017-05-01',
     'PEMS08':'2016-07-01'
 }
-start_date = datetime.strptime(day_dict[DATASET], "%Y-%m-%d")
-print('the start date of dataset: ', start_date)
+def generate_weekend(DATASET):
+    # get basic flow data
+    flow_data = np.load('../dataset/{}/{}.npz'.format(DATASET,DATASET))['data']
+    flow_data = flow_data[...,:1]
+    print(flow_data.shape)
+    time_stamps,num_nodes,dim = flow_data.shape
+    start_date = datetime.strptime(day_dict[DATASET], "%Y-%m-%d")
+    print('the start date of dataset: ', start_date)
 
-def generate_weekend():
     res = np.zeros((time_stamps,num_nodes,1))
     current_date = start_date
     for i in range(time_stamps//288):
@@ -34,4 +31,4 @@ def generate_weekend():
     # 保存文件
     np.savez('../dataset/{}/weekend.npz'.format(DATASET), data=res)
 
-generate_weekend()
+# generate_weekend('PEMS04')
