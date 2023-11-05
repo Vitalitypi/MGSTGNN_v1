@@ -1,0 +1,273 @@
+adaptive_embedding_dim: 8
+batch_size: 64
+dataset: PEMS04
+debug: True
+dim_embed_feature: 120
+early_stop: True
+early_stop_patience: 15
+embed_dim: 6
+epochs: 120
+flow_dim: 1
+gpu_id: 0
+grad_norm: False
+holiday_dim: 1
+holiday_embedding_dim: 2
+hop_dim: 1
+in_steps: 12
+input_dim: 5
+input_embedding_dim: 80
+log_dir: ./exps/logs/
+log_step: 20
+loss_func: mae
+lr_decay: True
+lr_decay_rate: 0.2
+lr_decay_step: 80,100
+lr_init: 0.006
+mae_thresh: None
+mape_thresh: 0.0
+max_grad_norm: 5
+mode: Train
+model: MGSTGNN
+normalizer: std
+num_layers: 3
+num_nodes: 307
+out_steps: 12
+output_dim: 1
+period_dim: 1
+periods: [288]
+periods_embedding_dim: [24]
+plot: False
+real_value: True
+rnn_units: 64
+seed: 10
+spatial_embedding_dim: 0
+test_ratio: 0.2
+val_ratio: 0.2
+weather_dim: 0
+weekend_dim: 1
+weekend_embedding_dim: 6
+*****************Model Parameter*****************
+encoder.node_emb torch.Size([307, 0]) True
+encoder.adaptive_embedding torch.Size([12, 307, 8]) True
+encoder.input_proj.weight torch.Size([80, 5]) True
+encoder.input_proj.bias torch.Size([80]) True
+encoder.periods_embedding.0.weight torch.Size([288, 24]) True
+encoder.weekend_embedding.weight torch.Size([2, 6]) True
+encoder.holiday_embedding.weight torch.Size([2, 2]) True
+encoder.output_proj.weight torch.Size([12, 1440]) True
+encoder.output_proj.bias torch.Size([12]) True
+encoder.skip.weight torch.Size([120, 5]) True
+encoder.skip.bias torch.Size([120]) True
+encoder.ln.weight torch.Size([120]) True
+encoder.ln.bias torch.Size([120]) True
+mgstgnn.node_embeddings torch.Size([307, 6]) True
+mgstgnn.time_embeddings torch.Size([12, 6]) True
+mgstgnn.encoder.gru0.gate_r.weights_pool torch.Size([6, 2, 189, 64]) True
+mgstgnn.encoder.gru0.gate_r.bias_pool torch.Size([6, 64]) True
+mgstgnn.encoder.gru0.gate_r.norm.weight torch.Size([6]) True
+mgstgnn.encoder.gru0.gate_r.norm.bias torch.Size([6]) True
+mgstgnn.encoder.gru0.gate_z.weights_pool torch.Size([6, 2, 189, 64]) True
+mgstgnn.encoder.gru0.gate_z.bias_pool torch.Size([6, 64]) True
+mgstgnn.encoder.gru0.gate_z.norm.weight torch.Size([6]) True
+mgstgnn.encoder.gru0.gate_z.norm.bias torch.Size([6]) True
+mgstgnn.encoder.gru0.update.weights_pool torch.Size([6, 2, 189, 64]) True
+mgstgnn.encoder.gru0.update.bias_pool torch.Size([6, 64]) True
+mgstgnn.encoder.gru0.update.norm.weight torch.Size([6]) True
+mgstgnn.encoder.gru0.update.norm.bias torch.Size([6]) True
+mgstgnn.encoder.grus.0.gate_r.weights_pool torch.Size([6, 2, 128, 64]) True
+mgstgnn.encoder.grus.0.gate_r.bias_pool torch.Size([6, 64]) True
+mgstgnn.encoder.grus.0.gate_r.norm.weight torch.Size([6]) True
+mgstgnn.encoder.grus.0.gate_r.norm.bias torch.Size([6]) True
+mgstgnn.encoder.grus.0.gate_z.weights_pool torch.Size([6, 2, 128, 64]) True
+mgstgnn.encoder.grus.0.gate_z.bias_pool torch.Size([6, 64]) True
+mgstgnn.encoder.grus.0.gate_z.norm.weight torch.Size([6]) True
+mgstgnn.encoder.grus.0.gate_z.norm.bias torch.Size([6]) True
+mgstgnn.encoder.grus.0.update.weights_pool torch.Size([6, 2, 128, 64]) True
+mgstgnn.encoder.grus.0.update.bias_pool torch.Size([6, 64]) True
+mgstgnn.encoder.grus.0.update.norm.weight torch.Size([6]) True
+mgstgnn.encoder.grus.0.update.norm.bias torch.Size([6]) True
+mgstgnn.encoder.grus.1.gate_r.weights_pool torch.Size([6, 2, 128, 64]) True
+mgstgnn.encoder.grus.1.gate_r.bias_pool torch.Size([6, 64]) True
+mgstgnn.encoder.grus.1.gate_r.norm.weight torch.Size([6]) True
+mgstgnn.encoder.grus.1.gate_r.norm.bias torch.Size([6]) True
+mgstgnn.encoder.grus.1.gate_z.weights_pool torch.Size([6, 2, 128, 64]) True
+mgstgnn.encoder.grus.1.gate_z.bias_pool torch.Size([6, 64]) True
+mgstgnn.encoder.grus.1.gate_z.norm.weight torch.Size([6]) True
+mgstgnn.encoder.grus.1.gate_z.norm.bias torch.Size([6]) True
+mgstgnn.encoder.grus.1.update.weights_pool torch.Size([6, 2, 128, 64]) True
+mgstgnn.encoder.grus.1.update.bias_pool torch.Size([6, 64]) True
+mgstgnn.encoder.grus.1.update.norm.weight torch.Size([6]) True
+mgstgnn.encoder.grus.1.update.norm.bias torch.Size([6]) True
+mgstgnn.encoder.gats.0.output.fc1.weight torch.Size([256, 512]) True
+mgstgnn.encoder.gats.0.output.fc1.bias torch.Size([256]) True
+mgstgnn.encoder.gats.0.output.fc2.weight torch.Size([64, 256]) True
+mgstgnn.encoder.gats.0.output.fc2.bias torch.Size([64]) True
+mgstgnn.encoder.gats.1.output.fc1.weight torch.Size([256, 512]) True
+mgstgnn.encoder.gats.1.output.fc1.bias torch.Size([256]) True
+mgstgnn.encoder.gats.1.output.fc2.weight torch.Size([64, 256]) True
+mgstgnn.encoder.gats.1.output.fc2.bias torch.Size([64]) True
+mgstgnn.encoder.gats.2.output.fc1.weight torch.Size([256, 512]) True
+mgstgnn.encoder.gats.2.output.fc1.bias torch.Size([256]) True
+mgstgnn.encoder.gats.2.output.fc2.weight torch.Size([64, 256]) True
+mgstgnn.encoder.gats.2.output.fc2.bias torch.Size([64]) True
+mgstgnn.encoder.gats.3.output.fc1.weight torch.Size([256, 512]) True
+mgstgnn.encoder.gats.3.output.fc1.bias torch.Size([256]) True
+mgstgnn.encoder.gats.3.output.fc2.weight torch.Size([64, 256]) True
+mgstgnn.encoder.gats.3.output.fc2.bias torch.Size([64]) True
+mgstgnn.encoder.gats.4.output.fc1.weight torch.Size([256, 512]) True
+mgstgnn.encoder.gats.4.output.fc1.bias torch.Size([256]) True
+mgstgnn.encoder.gats.4.output.fc2.weight torch.Size([64, 256]) True
+mgstgnn.encoder.gats.4.output.fc2.bias torch.Size([64]) True
+mgstgnn.encoder.gats.5.output.fc1.weight torch.Size([256, 512]) True
+mgstgnn.encoder.gats.5.output.fc1.bias torch.Size([256]) True
+mgstgnn.encoder.gats.5.output.fc2.weight torch.Size([64, 256]) True
+mgstgnn.encoder.gats.5.output.fc2.bias torch.Size([64]) True
+mgstgnn.encoder.gats.6.output.fc1.weight torch.Size([256, 512]) True
+mgstgnn.encoder.gats.6.output.fc1.bias torch.Size([256]) True
+mgstgnn.encoder.gats.6.output.fc2.weight torch.Size([64, 256]) True
+mgstgnn.encoder.gats.6.output.fc2.bias torch.Size([64]) True
+mgstgnn.encoder.gats.7.output.fc1.weight torch.Size([256, 512]) True
+mgstgnn.encoder.gats.7.output.fc1.bias torch.Size([256]) True
+mgstgnn.encoder.gats.7.output.fc2.weight torch.Size([64, 256]) True
+mgstgnn.encoder.gats.7.output.fc2.bias torch.Size([64]) True
+mgstgnn.encoder.gats.8.output.fc1.weight torch.Size([256, 512]) True
+mgstgnn.encoder.gats.8.output.fc1.bias torch.Size([256]) True
+mgstgnn.encoder.gats.8.output.fc2.weight torch.Size([64, 256]) True
+mgstgnn.encoder.gats.8.output.fc2.bias torch.Size([64]) True
+mgstgnn.encoder.gats.9.output.fc1.weight torch.Size([256, 512]) True
+mgstgnn.encoder.gats.9.output.fc1.bias torch.Size([256]) True
+mgstgnn.encoder.gats.9.output.fc2.weight torch.Size([64, 256]) True
+mgstgnn.encoder.gats.9.output.fc2.bias torch.Size([64]) True
+mgstgnn.encoder.gats.10.output.fc1.weight torch.Size([256, 512]) True
+mgstgnn.encoder.gats.10.output.fc1.bias torch.Size([256]) True
+mgstgnn.encoder.gats.10.output.fc2.weight torch.Size([64, 256]) True
+mgstgnn.encoder.gats.10.output.fc2.bias torch.Size([64]) True
+mgstgnn.encoder.gats.11.output.fc1.weight torch.Size([256, 512]) True
+mgstgnn.encoder.gats.11.output.fc1.bias torch.Size([256]) True
+mgstgnn.encoder.gats.11.output.fc2.weight torch.Size([64, 256]) True
+mgstgnn.encoder.gats.11.output.fc2.bias torch.Size([64]) True
+mgstgnn.encoder.norms.0.weight torch.Size([64]) True
+mgstgnn.encoder.norms.0.bias torch.Size([64]) True
+mgstgnn.encoder.norms.1.weight torch.Size([64]) True
+mgstgnn.encoder.norms.1.bias torch.Size([64]) True
+mgstgnn.encoder.norms.2.weight torch.Size([64]) True
+mgstgnn.encoder.norms.2.bias torch.Size([64]) True
+mgstgnn.encoder.norms.3.weight torch.Size([64]) True
+mgstgnn.encoder.norms.3.bias torch.Size([64]) True
+mgstgnn.encoder.norms.4.weight torch.Size([64]) True
+mgstgnn.encoder.norms.4.bias torch.Size([64]) True
+mgstgnn.encoder.norms.5.weight torch.Size([64]) True
+mgstgnn.encoder.norms.5.bias torch.Size([64]) True
+mgstgnn.encoder.norms.6.weight torch.Size([64]) True
+mgstgnn.encoder.norms.6.bias torch.Size([64]) True
+mgstgnn.encoder.norms.7.weight torch.Size([64]) True
+mgstgnn.encoder.norms.7.bias torch.Size([64]) True
+mgstgnn.encoder.norms.8.weight torch.Size([64]) True
+mgstgnn.encoder.norms.8.bias torch.Size([64]) True
+mgstgnn.encoder.norms.9.weight torch.Size([64]) True
+mgstgnn.encoder.norms.9.bias torch.Size([64]) True
+mgstgnn.encoder.norms.10.weight torch.Size([64]) True
+mgstgnn.encoder.norms.10.bias torch.Size([64]) True
+mgstgnn.encoder.norms.11.weight torch.Size([64]) True
+mgstgnn.encoder.norms.11.bias torch.Size([64]) True
+mgstgnn.norm.weight torch.Size([64]) True
+mgstgnn.norm.bias torch.Size([64]) True
+mgstgnn.end_conv.weight torch.Size([12, 2, 1, 64]) True
+mgstgnn.end_conv.bias torch.Size([12]) True
+Total params num: 2862414
+*****************Finish Parameter****************
+*****************Model Parameter*****************
+model.0.weight torch.Size([512, 307]) True
+model.0.bias torch.Size([512]) True
+model.2.weight torch.Size([256, 512]) True
+model.2.bias torch.Size([256]) True
+model.4.weight torch.Size([1, 256]) True
+model.4.bias torch.Size([1]) True
+Total params num: 289281
+*****************Finish Parameter****************
+*****************Model Parameter*****************
+model.0.weight torch.Size([512, 307]) True
+model.0.bias torch.Size([512]) True
+model.2.weight torch.Size([256, 512]) True
+model.2.bias torch.Size([256]) True
+model.4.weight torch.Size([1, 256]) True
+model.4.bias torch.Size([1]) True
+Total params num: 289281
+*****************Finish Parameter****************
+*****************Model Parameter*****************
+model.0.weight torch.Size([512, 12]) True
+model.0.bias torch.Size([512]) True
+model.2.weight torch.Size([256, 512]) True
+model.2.bias torch.Size([256]) True
+model.4.weight torch.Size([1, 256]) True
+model.4.bias torch.Size([1]) True
+Total params num: 138241
+*****************Finish Parameter****************
+(16992, 307, 5)
+Train:  (10173, 12, 307, 5) (10173, 12, 307, 1)
+Val:  (3375, 12, 307, 5) (3375, 12, 307, 1)
+Test:  (3375, 12, 307, 5) (3375, 12, 307, 1)
+Applying learning rate decay.
+2023-11-05 11:36: Experiment log path in: /mnt/workspace/MGSTGNN/exps/logs/PEMS04/20231105113621
+2023-11-05 11:36: Argument: Namespace(dataset='PEMS04', mode='Train', debug=True, model='MGSTGNN', gpu_id=0, val_ratio=0.2, test_ratio=0.2, in_steps=12, out_steps=12, num_nodes=307, normalizer='std', input_dim=5, flow_dim=1, period_dim=1, weekend_dim=1, holiday_dim=1, hop_dim=1, weather_dim=0, dim_embed_feature=120, input_embedding_dim=80, periods_embedding_dim=[24], weekend_embedding_dim=6, holiday_embedding_dim=2, spatial_embedding_dim=0, adaptive_embedding_dim=8, output_dim=1, embed_dim=6, rnn_units=64, num_layers=3, periods=[288], loss_func='mae', seed=10, batch_size=64, epochs=120, lr_init=0.006, lr_decay=True, lr_decay_rate=0.2, lr_decay_step='80,100', early_stop=True, early_stop_patience=15, grad_norm=False, max_grad_norm=5, real_value=True, mae_thresh=None, mape_thresh=0.0, log_dir='/mnt/workspace/MGSTGNN/exps/logs/PEMS04/20231105113621', log_step=20, plot=False, device=device(type='cuda', index=0))
+2023-11-05 11:36: adaptive_embedding_dim: 8
+2023-11-05 11:36: batch_size: 64
+2023-11-05 11:36: dataset: PEMS04
+2023-11-05 11:36: debug: True
+2023-11-05 11:36: device: cuda:0
+2023-11-05 11:36: dim_embed_feature: 120
+2023-11-05 11:36: early_stop: True
+2023-11-05 11:36: early_stop_patience: 15
+2023-11-05 11:36: embed_dim: 6
+2023-11-05 11:36: epochs: 120
+2023-11-05 11:36: flow_dim: 1
+2023-11-05 11:36: gpu_id: 0
+2023-11-05 11:36: grad_norm: False
+2023-11-05 11:36: holiday_dim: 1
+2023-11-05 11:36: holiday_embedding_dim: 2
+2023-11-05 11:36: hop_dim: 1
+2023-11-05 11:36: in_steps: 12
+2023-11-05 11:36: input_dim: 5
+2023-11-05 11:36: input_embedding_dim: 80
+2023-11-05 11:36: log_dir: /mnt/workspace/MGSTGNN/exps/logs/PEMS04/20231105113621
+2023-11-05 11:36: log_step: 20
+2023-11-05 11:36: loss_func: mae
+2023-11-05 11:36: lr_decay: True
+2023-11-05 11:36: lr_decay_rate: 0.2
+2023-11-05 11:36: lr_decay_step: 80,100
+2023-11-05 11:36: lr_init: 0.006
+2023-11-05 11:36: mae_thresh: None
+2023-11-05 11:36: mape_thresh: 0.0
+2023-11-05 11:36: max_grad_norm: 5
+2023-11-05 11:36: mode: Train
+2023-11-05 11:36: model: MGSTGNN
+2023-11-05 11:36: normalizer: std
+2023-11-05 11:36: num_layers: 3
+2023-11-05 11:36: num_nodes: 307
+2023-11-05 11:36: out_steps: 12
+2023-11-05 11:36: output_dim: 1
+2023-11-05 11:36: period_dim: 1
+2023-11-05 11:36: periods: [288]
+2023-11-05 11:36: periods_embedding_dim: [24]
+2023-11-05 11:36: plot: False
+2023-11-05 11:36: real_value: True
+2023-11-05 11:36: rnn_units: 64
+2023-11-05 11:36: seed: 10
+2023-11-05 11:36: spatial_embedding_dim: 0
+2023-11-05 11:36: test_ratio: 0.2
+2023-11-05 11:36: val_ratio: 0.2
+2023-11-05 11:36: weather_dim: 0
+2023-11-05 11:36: weekend_dim: 1
+2023-11-05 11:36: weekend_embedding_dim: 6
+2023-11-05 11:36: Train Epoch 1: 0/158 Generator Loss: 213.210739 Pred Discriminator Loss: 1.091009 spatial Discriminator Loss: 0.761716 temporal Discriminator Loss: 0.832835
+2023-11-05 11:36: Train Epoch 1: 20/158 Generator Loss: 208.592667 Pred Discriminator Loss: 0.593751 spatial Discriminator Loss: 0.621851 temporal Discriminator Loss: 0.671891
+2023-11-05 11:36: Train Epoch 1: 40/158 Generator Loss: 183.705200 Pred Discriminator Loss: 0.503029 spatial Discriminator Loss: 0.531231 temporal Discriminator Loss: 0.457975
+2023-11-05 11:36: Train Epoch 1: 60/158 Generator Loss: 154.640442 Pred Discriminator Loss: 0.494983 spatial Discriminator Loss: 0.397032 temporal Discriminator Loss: 0.502258
+2023-11-05 11:37: Train Epoch 1: 80/158 Generator Loss: 147.536591 Pred Discriminator Loss: 0.508787 spatial Discriminator Loss: 0.594190 temporal Discriminator Loss: 0.272112
+2023-11-05 11:37: Train Epoch 1: 100/158 Generator Loss: 97.889236 Pred Discriminator Loss: 0.536587 spatial Discriminator Loss: 0.570867 temporal Discriminator Loss: 0.156658
+2023-11-05 11:37: Train Epoch 1: 120/158 Generator Loss: 82.134743 Pred Discriminator Loss: 0.531102 spatial Discriminator Loss: 0.479863 temporal Discriminator Loss: 0.881403
+2023-11-05 11:37: Train Epoch 1: 140/158 Generator Loss: 50.317978 Pred Discriminator Loss: 0.578218 spatial Discriminator Loss: 0.518887 temporal Discriminator Loss: 0.864954
+2023-11-05 11:37: **********Train Epoch 1: Averaged Generator Loss: 127.521487, Averaged Pred Discriminator Loss: 0.562384, Averaged spatial Discriminator Loss: 0.547466, Averaged temporal Discriminator Loss: 0.533425
+2023-11-05 11:37: **********Val Epoch 1: average Loss: 46.189077
+2023-11-05 11:37: *********************************Current best model saved!
+2023-11-05 11:37: Train Epoch 2: 0/158 Generator Loss: 45.617577 Pred Discriminator Loss: 0.558097 spatial Discriminator Loss: 0.479084 temporal Discriminator Loss: 0.786436

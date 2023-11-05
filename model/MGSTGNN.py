@@ -20,6 +20,7 @@ class Encoder(nn.Module):
 
             periods,
             in_steps=12,
+            use_mixed_proj=True,
     ):
         super(Encoder, self).__init__()
 
@@ -29,6 +30,7 @@ class Encoder(nn.Module):
 
         self.num_nodes = num_nodes
         self.num_periods = len(periods)
+        self.periods = periods
         # 输入的embedding维度
         self.input_embedding_dim = input_embedding_dim
         # 周期的embedding维度
@@ -70,15 +72,15 @@ class Encoder(nn.Module):
             nn.Parameter(torch.empty(in_steps, num_nodes, self.adaptive_embedding_dim))
         )
 
-        # if use_mixed_proj:
-        #     self.output_proj = nn.Linear(
-        #         in_steps * self.model_dim, out_steps * output_dim
-        #     )
-        # else:
-        #     self.temporal_proj = nn.Linear(in_steps, out_steps)
-        #     self.output_proj = nn.Linear(self.model_dim, self.output_dim)
-        # self.skip = nn.Linear(input_dim,dim_embed_feature)
-        # self.ln = nn.LayerNorm(dim_embed_feature)
+        if use_mixed_proj:
+            self.output_proj = nn.Linear(
+                12 * self.model_dim, 12 * 1
+            )
+        else:
+            self.temporal_proj = nn.Linear(12, 12)
+            self.output_proj = nn.Linear(self.model_dim, 1)
+        self.skip = nn.Linear(input_dim,dim_embed_feature)
+        self.ln = nn.LayerNorm(dim_embed_feature)
     def forward(self,x):
         '''
         将输入x映射到高维空间
@@ -105,7 +107,7 @@ class Encoder(nn.Module):
         for i in range(self.num_periods):
             period = periods[i]
             period_emb = self.periods_embedding[i](
-                period.long()
+                (period*self.periods[i]).long()
             )
             features.append(period_emb)
         if self.weekend_embedding_dim > 0:
@@ -157,6 +159,9 @@ class MGSTGNN(nn.Module):
         self.num_layers = num_layers
         self.embed_dim = embed_dim
 
+        self.node_embeddings = nn.Parameter(torch.randn(self.num_node, embed_dim), requires_grad=True)
+        self.time_embeddings = nn.Parameter(torch.randn(self.in_steps, embed_dim), requires_grad=True)
+        
         self.encoder = DSTRNN(adj, dis, num_nodes, input_dim, rnn_units, embed_dim, num_layers, in_steps)
 
         self.norm = nn.LayerNorm(self.hidden_dim, eps=1e-12)
@@ -169,7 +174,8 @@ class MGSTGNN(nn.Module):
         b,t,n,d = source.size()
         # source: B, T, N, D
         init_state = self.encoder.init_hidden(source.shape[0])#,self.num_node,self.hidden_dim
-        output, _ = self.encoder(source, init_state) # B, T, N, hidden
+        output, _ = self.encoder(source, init_state, self.node_embeddings, self.time_embeddings) # B, T, N, hidden
+        
         output = self.out_dropout(self.norm(output[:, -self.recent_stamp:, :, :])) # B, r, N, hidden
 
         # CNN based predictor
@@ -196,9 +202,9 @@ class DSTRNN(nn.Module):
         ])
         self.gats = nn.ModuleList([GAT(adj, dis, dim_in, dim_out) for _ in range(in_steps)])
         self.norms = nn.ModuleList([nn.LayerNorm(dim_out) for _ in range(in_steps)])
-        self.node_embeddings = nn.Parameter(torch.randn(self.node_num, embed_dim), requires_grad=True)
-        self.time_embeddings = nn.Parameter(torch.randn(in_steps, embed_dim), requires_grad=True)
-    def forward(self, x, init_state):
+        # self.node_embeddings = nn.Parameter(torch.randn(self.node_num, embed_dim), requires_grad=True)
+        # self.time_embeddings = nn.Parameter(torch.randn(in_steps, embed_dim), requires_grad=True)
+    def forward(self, x, init_state, node_embeddings, time_embeddings):
         # shape of x: (B, T, N, D)
         # shape of init_state: (num_layers, B, N, hidden_dim)
         assert x.shape[2] == self.node_num and x.shape[3] == self.input_dim
@@ -209,7 +215,7 @@ class DSTRNN(nn.Module):
         inner_states = []
         prev = x[:,0]
         for t in range(seq_length):
-            state = self.gru0(current_inputs[:, t, :, :], state, self.node_embeddings, self.time_embeddings[t]) # [B, N, hidden_dim]
+            state = self.gru0(current_inputs[:, t, :, :], state, node_embeddings, time_embeddings[t]) # [B, N, hidden_dim]
             # inner_states.append(state)
             att = self.gats[t](current_inputs[:, t, :, :], prev)
             inner_states.append(self.norms[t](state+att))
@@ -218,10 +224,11 @@ class DSTRNN(nn.Module):
         base_state = state
         current_inputs = torch.stack(inner_states, dim=1) # [B, T, N, D]
         states = [init_state[i+1] for i in range(self.num_gru)]
+        
         for t in range(seq_length):
             gru = self.grus[t%self.num_gru]
             prev_state = states[t%self.num_gru]
-            states[t%self.num_gru] = gru(current_inputs[:, t, :, :], prev_state, self.node_embeddings, self.time_embeddings[t]) # [B, N, hidden_dim]
+            states[t%self.num_gru] = gru(current_inputs[:, t, :, :], prev_state, node_embeddings, time_embeddings[t]) # [B, N, hidden_dim]
         states.append(base_state)
         current_inputs = torch.stack(states, dim=1) # [B, num_gru+1, N, D]
         return current_inputs, output_hidden
@@ -242,6 +249,7 @@ class GRUCell(nn.Module):
         self.update = GCN(dim_in+self.hidden_dim, dim_out, embed_dim, node_num)
 
     def forward(self, x, state, node_embeddings, time_embeddings):
+        
         # x: B, num_nodes, input_dim
         # state: B, num_nodes, hidden_dim
         state = state.to(x.device)
@@ -251,7 +259,8 @@ class GRUCell(nn.Module):
         candidate = torch.cat((x, z*state), dim=-1)
         hc = torch.tanh(self.update(candidate, node_embeddings, time_embeddings))
         h = r*state + (1-r)*hc
-
+        
+        
         return h
 
     def init_hidden_state(self, batch_size):
@@ -307,6 +316,7 @@ class GraphAttentionLayer(nn.Module):
         adj[:self.num_nodes,:self.num_nodes] = adj[self.num_nodes:,self.num_nodes:]
 
         self.adj = adj
+        
         dis = torch.Tensor(dis/np.max(dis)).to(device)
         dis = F.pad(
                 dis,
@@ -316,13 +326,12 @@ class GraphAttentionLayer(nn.Module):
         dis[:self.num_nodes,self.num_nodes:] = I
         dis[:self.num_nodes,:self.num_nodes] = dis[self.num_nodes:,self.num_nodes:]
         self.dis = dis
-        self.W = nn.Parameter(torch.empty(size=(in_features, out_features)))
+        self.W = nn.Parameter(torch.zeros(size=(in_features, out_features)))
         nn.init.xavier_uniform_(self.W.data, gain=1.414)
         self.a = nn.Parameter(torch.empty(size=(2*out_features, 1)))
         nn.init.xavier_uniform_(self.a.data, gain=1.414)
 
         self.leakyrelu = nn.LeakyReLU(self.alpha)
-
     def forward(self, h, ht):
         '''
         Args:
@@ -335,10 +344,10 @@ class GraphAttentionLayer(nn.Module):
         dis = self.dis.to(h.device)
         w  = self.W.to(h.device)
         Wh = torch.einsum("bni,io->bno",h,w)                    # h.shape: (b, 2N, in_features), Wh.shape: (b, 2N, out_features)
-
+        
         # Wh = torch.mm(h, w)
         e = self._prepare_attentional_mechanism_input(Wh)       # b,2n,2n
-
+        
         zero_vec = -9e15*torch.ones_like(e)
         attention = torch.where(adj > 0, e, zero_vec)           # b,2n,2n
         # 乘以权重矩阵
@@ -348,6 +357,7 @@ class GraphAttentionLayer(nn.Module):
         h_prime = torch.matmul(attention, Wh)
         h_prime = torch.cat([h_prime[:,:self.num_nodes],h_prime[:,self.num_nodes:]],dim=-1)
         # h_prime = h_prime[:,self.num_nodes:]
+        
         if self.concat:
             return F.elu(h_prime)
         else:
@@ -406,9 +416,12 @@ class GAT(nn.Module):
         x = F.dropout(x, self.dropout, training=self.training)
         x = torch.cat([att(x,xt) for att in self.attentions], dim=-1)
         x = F.dropout(x, self.dropout, training=self.training)
+        
+        
         x = x.unsqueeze(1)
         x = F.elu(self.output(x))
         x = x.squeeze(1)
+        
         return x
 
 class Network(nn.Module):
@@ -446,7 +459,9 @@ class Network(nn.Module):
                                rnn_layers,dim_embed,in_steps=in_steps,out_steps=out_steps)
     def forward(self,x):
         # 进行encoding
+        
         enc = self.encoder(x)
+        
         dat = torch.cat((x,enc),dim=-1)
         out = self.mgstgnn(dat)
         return out

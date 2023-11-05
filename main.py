@@ -210,7 +210,7 @@ if __name__ == "__main__":
     # config log path
     current_time = datetime.now().strftime('%Y%m%d%H%M%S')
     current_dir = os.path.dirname(os.path.realpath(__file__))
-    log_dir = os.path.join(current_dir, 'exps\logs', args.dataset, current_time)
+    log_dir = os.path.join(current_dir, 'exps/logs', args.dataset, current_time)
     args.log_dir = log_dir
 
     # model training or testing

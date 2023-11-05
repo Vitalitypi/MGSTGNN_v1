@@ -26,7 +26,7 @@ model:
   output_dim: 1
   embed_dim: 6
   rnn_units: 64
-  num_layers: 1
+  num_layers: 3
   periods: [288,144,96,154,155,333,1888,2124,72,339]
 train:
   loss_func: mae

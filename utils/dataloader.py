@@ -29,6 +29,7 @@ def get_dataloader_pems(dataset, batch_size=64, val_ratio=0.2, test_ratio=0.2, i
     std = data[..., 0].std()
     scaler = StandardScaler(mean, std)
     data[..., 0] = scaler.transform(data[..., 0])
+    
     # spilit dataset by days or by ratio
     data_train, data_val, data_test = split_data_by_ratio(data, val_ratio, test_ratio)
     # add time window [B, N, 1]

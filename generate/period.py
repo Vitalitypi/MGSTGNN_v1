@@ -38,7 +38,7 @@ def generate_period(DATASET,TOP_K,NUM_PERIOD):
     res = np.zeros((time_stamps, num_nodes, TOP_K))
     for t in range(time_stamps):
         for k in range(TOP_K):
-            res[t, :, k] = np.ones(num_nodes) * (t % top_k_values[k])
+            res[t, :, k] = np.ones(num_nodes) * ((t % top_k_values[k])/top_k_values[k])
     print("finished!")
     np.savez('../dataset/{}/period.npz'.format(DATASET), data=res)
 

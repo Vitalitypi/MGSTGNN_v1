@@ -1,0 +1,470 @@
+adaptive_embedding_dim: 8
+batch_size: 64
+dataset: PEMS04
+debug: True
+dim_embed_feature: 120
+early_stop: True
+early_stop_patience: 15
+embed_dim: 6
+epochs: 120
+flow_dim: 1
+gpu_id: 0
+grad_norm: False
+holiday_dim: 1
+holiday_embedding_dim: 2
+hop_dim: 1
+in_steps: 12
+input_dim: 5
+input_embedding_dim: 80
+log_dir: ./exps/logs/
+log_step: 20
+loss_func: mae
+lr_decay: True
+lr_decay_rate: 0.2
+lr_decay_step: 80,100
+lr_init: 0.006
+mae_thresh: None
+mape_thresh: 0.0
+max_grad_norm: 5
+mode: Train
+model: MGSTGNN
+normalizer: std
+num_layers: 3
+num_nodes: 307
+out_steps: 12
+output_dim: 1
+period_dim: 1
+periods: [288]
+periods_embedding_dim: [24]
+plot: False
+real_value: True
+rnn_units: 64
+seed: 10
+spatial_embedding_dim: 0
+test_ratio: 0.2
+val_ratio: 0.2
+weather_dim: 0
+weekend_dim: 1
+weekend_embedding_dim: 6
+*****************Model Parameter*****************
+encoder.node_emb torch.Size([307, 0]) True
+encoder.adaptive_embedding torch.Size([12, 307, 8]) True
+encoder.input_proj.weight torch.Size([80, 5]) True
+encoder.input_proj.bias torch.Size([80]) True
+encoder.periods_embedding.0.weight torch.Size([288, 24]) True
+encoder.weekend_embedding.weight torch.Size([2, 6]) True
+encoder.holiday_embedding.weight torch.Size([2, 2]) True
+encoder.output_proj.weight torch.Size([12, 1440]) True
+encoder.output_proj.bias torch.Size([12]) True
+encoder.skip.weight torch.Size([120, 5]) True
+encoder.skip.bias torch.Size([120]) True
+encoder.ln.weight torch.Size([120]) True
+encoder.ln.bias torch.Size([120]) True
+mgstgnn.node_embeddings torch.Size([307, 6]) True
+mgstgnn.time_embeddings torch.Size([12, 6]) True
+mgstgnn.encoder.gru0.gate_r.weights_pool torch.Size([6, 2, 189, 64]) True
+mgstgnn.encoder.gru0.gate_r.bias_pool torch.Size([6, 64]) True
+mgstgnn.encoder.gru0.gate_r.norm.weight torch.Size([6]) True
+mgstgnn.encoder.gru0.gate_r.norm.bias torch.Size([6]) True
+mgstgnn.encoder.gru0.gate_z.weights_pool torch.Size([6, 2, 189, 64]) True
+mgstgnn.encoder.gru0.gate_z.bias_pool torch.Size([6, 64]) True
+mgstgnn.encoder.gru0.gate_z.norm.weight torch.Size([6]) True
+mgstgnn.encoder.gru0.gate_z.norm.bias torch.Size([6]) True
+mgstgnn.encoder.gru0.update.weights_pool torch.Size([6, 2, 189, 64]) True
+mgstgnn.encoder.gru0.update.bias_pool torch.Size([6, 64]) True
+mgstgnn.encoder.gru0.update.norm.weight torch.Size([6]) True
+mgstgnn.encoder.gru0.update.norm.bias torch.Size([6]) True
+mgstgnn.encoder.grus.0.gate_r.weights_pool torch.Size([6, 2, 128, 64]) True
+mgstgnn.encoder.grus.0.gate_r.bias_pool torch.Size([6, 64]) True
+mgstgnn.encoder.grus.0.gate_r.norm.weight torch.Size([6]) True
+mgstgnn.encoder.grus.0.gate_r.norm.bias torch.Size([6]) True
+mgstgnn.encoder.grus.0.gate_z.weights_pool torch.Size([6, 2, 128, 64]) True
+mgstgnn.encoder.grus.0.gate_z.bias_pool torch.Size([6, 64]) True
+mgstgnn.encoder.grus.0.gate_z.norm.weight torch.Size([6]) True
+mgstgnn.encoder.grus.0.gate_z.norm.bias torch.Size([6]) True
+mgstgnn.encoder.grus.0.update.weights_pool torch.Size([6, 2, 128, 64]) True
+mgstgnn.encoder.grus.0.update.bias_pool torch.Size([6, 64]) True
+mgstgnn.encoder.grus.0.update.norm.weight torch.Size([6]) True
+mgstgnn.encoder.grus.0.update.norm.bias torch.Size([6]) True
+mgstgnn.encoder.grus.1.gate_r.weights_pool torch.Size([6, 2, 128, 64]) True
+mgstgnn.encoder.grus.1.gate_r.bias_pool torch.Size([6, 64]) True
+mgstgnn.encoder.grus.1.gate_r.norm.weight torch.Size([6]) True
+mgstgnn.encoder.grus.1.gate_r.norm.bias torch.Size([6]) True
+mgstgnn.encoder.grus.1.gate_z.weights_pool torch.Size([6, 2, 128, 64]) True
+mgstgnn.encoder.grus.1.gate_z.bias_pool torch.Size([6, 64]) True
+mgstgnn.encoder.grus.1.gate_z.norm.weight torch.Size([6]) True
+mgstgnn.encoder.grus.1.gate_z.norm.bias torch.Size([6]) True
+mgstgnn.encoder.grus.1.update.weights_pool torch.Size([6, 2, 128, 64]) True
+mgstgnn.encoder.grus.1.update.bias_pool torch.Size([6, 64]) True
+mgstgnn.encoder.grus.1.update.norm.weight torch.Size([6]) True
+mgstgnn.encoder.grus.1.update.norm.bias torch.Size([6]) True
+mgstgnn.encoder.gats.0.output.fc1.weight torch.Size([256, 512]) True
+mgstgnn.encoder.gats.0.output.fc1.bias torch.Size([256]) True
+mgstgnn.encoder.gats.0.output.fc2.weight torch.Size([64, 256]) True
+mgstgnn.encoder.gats.0.output.fc2.bias torch.Size([64]) True
+mgstgnn.encoder.gats.1.output.fc1.weight torch.Size([256, 512]) True
+mgstgnn.encoder.gats.1.output.fc1.bias torch.Size([256]) True
+mgstgnn.encoder.gats.1.output.fc2.weight torch.Size([64, 256]) True
+mgstgnn.encoder.gats.1.output.fc2.bias torch.Size([64]) True
+mgstgnn.encoder.gats.2.output.fc1.weight torch.Size([256, 512]) True
+mgstgnn.encoder.gats.2.output.fc1.bias torch.Size([256]) True
+mgstgnn.encoder.gats.2.output.fc2.weight torch.Size([64, 256]) True
+mgstgnn.encoder.gats.2.output.fc2.bias torch.Size([64]) True
+mgstgnn.encoder.gats.3.output.fc1.weight torch.Size([256, 512]) True
+mgstgnn.encoder.gats.3.output.fc1.bias torch.Size([256]) True
+mgstgnn.encoder.gats.3.output.fc2.weight torch.Size([64, 256]) True
+mgstgnn.encoder.gats.3.output.fc2.bias torch.Size([64]) True
+mgstgnn.encoder.gats.4.output.fc1.weight torch.Size([256, 512]) True
+mgstgnn.encoder.gats.4.output.fc1.bias torch.Size([256]) True
+mgstgnn.encoder.gats.4.output.fc2.weight torch.Size([64, 256]) True
+mgstgnn.encoder.gats.4.output.fc2.bias torch.Size([64]) True
+mgstgnn.encoder.gats.5.output.fc1.weight torch.Size([256, 512]) True
+mgstgnn.encoder.gats.5.output.fc1.bias torch.Size([256]) True
+mgstgnn.encoder.gats.5.output.fc2.weight torch.Size([64, 256]) True
+mgstgnn.encoder.gats.5.output.fc2.bias torch.Size([64]) True
+mgstgnn.encoder.gats.6.output.fc1.weight torch.Size([256, 512]) True
+mgstgnn.encoder.gats.6.output.fc1.bias torch.Size([256]) True
+mgstgnn.encoder.gats.6.output.fc2.weight torch.Size([64, 256]) True
+mgstgnn.encoder.gats.6.output.fc2.bias torch.Size([64]) True
+mgstgnn.encoder.gats.7.output.fc1.weight torch.Size([256, 512]) True
+mgstgnn.encoder.gats.7.output.fc1.bias torch.Size([256]) True
+mgstgnn.encoder.gats.7.output.fc2.weight torch.Size([64, 256]) True
+mgstgnn.encoder.gats.7.output.fc2.bias torch.Size([64]) True
+mgstgnn.encoder.gats.8.output.fc1.weight torch.Size([256, 512]) True
+mgstgnn.encoder.gats.8.output.fc1.bias torch.Size([256]) True
+mgstgnn.encoder.gats.8.output.fc2.weight torch.Size([64, 256]) True
+mgstgnn.encoder.gats.8.output.fc2.bias torch.Size([64]) True
+mgstgnn.encoder.gats.9.output.fc1.weight torch.Size([256, 512]) True
+mgstgnn.encoder.gats.9.output.fc1.bias torch.Size([256]) True
+mgstgnn.encoder.gats.9.output.fc2.weight torch.Size([64, 256]) True
+mgstgnn.encoder.gats.9.output.fc2.bias torch.Size([64]) True
+mgstgnn.encoder.gats.10.output.fc1.weight torch.Size([256, 512]) True
+mgstgnn.encoder.gats.10.output.fc1.bias torch.Size([256]) True
+mgstgnn.encoder.gats.10.output.fc2.weight torch.Size([64, 256]) True
+mgstgnn.encoder.gats.10.output.fc2.bias torch.Size([64]) True
+mgstgnn.encoder.gats.11.output.fc1.weight torch.Size([256, 512]) True
+mgstgnn.encoder.gats.11.output.fc1.bias torch.Size([256]) True
+mgstgnn.encoder.gats.11.output.fc2.weight torch.Size([64, 256]) True
+mgstgnn.encoder.gats.11.output.fc2.bias torch.Size([64]) True
+mgstgnn.encoder.norms.0.weight torch.Size([64]) True
+mgstgnn.encoder.norms.0.bias torch.Size([64]) True
+mgstgnn.encoder.norms.1.weight torch.Size([64]) True
+mgstgnn.encoder.norms.1.bias torch.Size([64]) True
+mgstgnn.encoder.norms.2.weight torch.Size([64]) True
+mgstgnn.encoder.norms.2.bias torch.Size([64]) True
+mgstgnn.encoder.norms.3.weight torch.Size([64]) True
+mgstgnn.encoder.norms.3.bias torch.Size([64]) True
+mgstgnn.encoder.norms.4.weight torch.Size([64]) True
+mgstgnn.encoder.norms.4.bias torch.Size([64]) True
+mgstgnn.encoder.norms.5.weight torch.Size([64]) True
+mgstgnn.encoder.norms.5.bias torch.Size([64]) True
+mgstgnn.encoder.norms.6.weight torch.Size([64]) True
+mgstgnn.encoder.norms.6.bias torch.Size([64]) True
+mgstgnn.encoder.norms.7.weight torch.Size([64]) True
+mgstgnn.encoder.norms.7.bias torch.Size([64]) True
+mgstgnn.encoder.norms.8.weight torch.Size([64]) True
+mgstgnn.encoder.norms.8.bias torch.Size([64]) True
+mgstgnn.encoder.norms.9.weight torch.Size([64]) True
+mgstgnn.encoder.norms.9.bias torch.Size([64]) True
+mgstgnn.encoder.norms.10.weight torch.Size([64]) True
+mgstgnn.encoder.norms.10.bias torch.Size([64]) True
+mgstgnn.encoder.norms.11.weight torch.Size([64]) True
+mgstgnn.encoder.norms.11.bias torch.Size([64]) True
+mgstgnn.norm.weight torch.Size([64]) True
+mgstgnn.norm.bias torch.Size([64]) True
+mgstgnn.end_conv.weight torch.Size([12, 2, 1, 64]) True
+mgstgnn.end_conv.bias torch.Size([12]) True
+Total params num: 2862414
+*****************Finish Parameter****************
+*****************Model Parameter*****************
+model.0.weight torch.Size([512, 307]) True
+model.0.bias torch.Size([512]) True
+model.2.weight torch.Size([256, 512]) True
+model.2.bias torch.Size([256]) True
+model.4.weight torch.Size([1, 256]) True
+model.4.bias torch.Size([1]) True
+Total params num: 289281
+*****************Finish Parameter****************
+*****************Model Parameter*****************
+model.0.weight torch.Size([512, 307]) True
+model.0.bias torch.Size([512]) True
+model.2.weight torch.Size([256, 512]) True
+model.2.bias torch.Size([256]) True
+model.4.weight torch.Size([1, 256]) True
+model.4.bias torch.Size([1]) True
+Total params num: 289281
+*****************Finish Parameter****************
+*****************Model Parameter*****************
+model.0.weight torch.Size([512, 12]) True
+model.0.bias torch.Size([512]) True
+model.2.weight torch.Size([256, 512]) True
+model.2.bias torch.Size([256]) True
+model.4.weight torch.Size([1, 256]) True
+model.4.bias torch.Size([1]) True
+Total params num: 138241
+*****************Finish Parameter****************
+(16992, 307, 5)
+Train:  (10173, 12, 307, 5) (10173, 12, 307, 1)
+Val:  (3375, 12, 307, 5) (3375, 12, 307, 1)
+Test:  (3375, 12, 307, 5) (3375, 12, 307, 1)
+Applying learning rate decay.
+2023-11-04 22:45: Experiment log path in: /mnt/workspace/MGSTGNN/exps/logs/PEMS04/20231104224556
+2023-11-04 22:45: Argument: Namespace(dataset='PEMS04', mode='Train', debug=True, model='MGSTGNN', gpu_id=0, val_ratio=0.2, test_ratio=0.2, in_steps=12, out_steps=12, num_nodes=307, normalizer='std', input_dim=5, flow_dim=1, period_dim=1, weekend_dim=1, holiday_dim=1, hop_dim=1, weather_dim=0, dim_embed_feature=120, input_embedding_dim=80, periods_embedding_dim=[24], weekend_embedding_dim=6, holiday_embedding_dim=2, spatial_embedding_dim=0, adaptive_embedding_dim=8, output_dim=1, embed_dim=6, rnn_units=64, num_layers=3, periods=[288], loss_func='mae', seed=10, batch_size=64, epochs=120, lr_init=0.006, lr_decay=True, lr_decay_rate=0.2, lr_decay_step='80,100', early_stop=True, early_stop_patience=15, grad_norm=False, max_grad_norm=5, real_value=True, mae_thresh=None, mape_thresh=0.0, log_dir='/mnt/workspace/MGSTGNN/exps/logs/PEMS04/20231104224556', log_step=20, plot=False, device=device(type='cuda', index=0))
+2023-11-04 22:45: adaptive_embedding_dim: 8
+2023-11-04 22:45: batch_size: 64
+2023-11-04 22:45: dataset: PEMS04
+2023-11-04 22:45: debug: True
+2023-11-04 22:45: device: cuda:0
+2023-11-04 22:45: dim_embed_feature: 120
+2023-11-04 22:45: early_stop: True
+2023-11-04 22:45: early_stop_patience: 15
+2023-11-04 22:45: embed_dim: 6
+2023-11-04 22:45: epochs: 120
+2023-11-04 22:45: flow_dim: 1
+2023-11-04 22:45: gpu_id: 0
+2023-11-04 22:45: grad_norm: False
+2023-11-04 22:45: holiday_dim: 1
+2023-11-04 22:45: holiday_embedding_dim: 2
+2023-11-04 22:45: hop_dim: 1
+2023-11-04 22:45: in_steps: 12
+2023-11-04 22:45: input_dim: 5
+2023-11-04 22:45: input_embedding_dim: 80
+2023-11-04 22:45: log_dir: /mnt/workspace/MGSTGNN/exps/logs/PEMS04/20231104224556
+2023-11-04 22:45: log_step: 20
+2023-11-04 22:45: loss_func: mae
+2023-11-04 22:45: lr_decay: True
+2023-11-04 22:45: lr_decay_rate: 0.2
+2023-11-04 22:45: lr_decay_step: 80,100
+2023-11-04 22:45: lr_init: 0.006
+2023-11-04 22:45: mae_thresh: None
+2023-11-04 22:45: mape_thresh: 0.0
+2023-11-04 22:45: max_grad_norm: 5
+2023-11-04 22:45: mode: Train
+2023-11-04 22:45: model: MGSTGNN
+2023-11-04 22:45: normalizer: std
+2023-11-04 22:45: num_layers: 3
+2023-11-04 22:45: num_nodes: 307
+2023-11-04 22:45: out_steps: 12
+2023-11-04 22:45: output_dim: 1
+2023-11-04 22:45: period_dim: 1
+2023-11-04 22:45: periods: [288]
+2023-11-04 22:45: periods_embedding_dim: [24]
+2023-11-04 22:45: plot: False
+2023-11-04 22:45: real_value: True
+2023-11-04 22:45: rnn_units: 64
+2023-11-04 22:45: seed: 10
+2023-11-04 22:45: spatial_embedding_dim: 0
+2023-11-04 22:45: test_ratio: 0.2
+2023-11-04 22:45: val_ratio: 0.2
+2023-11-04 22:45: weather_dim: 0
+2023-11-04 22:45: weekend_dim: 1
+2023-11-04 22:45: weekend_embedding_dim: 6
+2023-11-04 22:45: Train Epoch 1: 0/158 Generator Loss: 213.210632 Pred Discriminator Loss: 1.091009 spatial Discriminator Loss: 0.761716 temporal Discriminator Loss: 0.832760
+2023-11-04 22:46: Train Epoch 1: 20/158 Generator Loss: 208.609344 Pred Discriminator Loss: 0.592920 spatial Discriminator Loss: 0.621858 temporal Discriminator Loss: 0.672987
+2023-11-04 22:46: Train Epoch 1: 40/158 Generator Loss: 183.710129 Pred Discriminator Loss: 0.502839 spatial Discriminator Loss: 0.531230 temporal Discriminator Loss: 0.457995
+2023-11-04 22:46: Train Epoch 1: 60/158 Generator Loss: 154.953415 Pred Discriminator Loss: 0.495120 spatial Discriminator Loss: 0.396966 temporal Discriminator Loss: 0.487299
+2023-11-04 22:46: Train Epoch 1: 80/158 Generator Loss: 148.019012 Pred Discriminator Loss: 0.510459 spatial Discriminator Loss: 0.670525 temporal Discriminator Loss: 0.261594
+2023-11-04 22:46: Train Epoch 1: 100/158 Generator Loss: 98.170105 Pred Discriminator Loss: 0.546373 spatial Discriminator Loss: 0.570945 temporal Discriminator Loss: 0.155096
+2023-11-04 22:46: Train Epoch 1: 120/158 Generator Loss: 81.767563 Pred Discriminator Loss: 0.531132 spatial Discriminator Loss: 0.470987 temporal Discriminator Loss: 0.908511
+2023-11-04 22:47: Train Epoch 1: 140/158 Generator Loss: 50.386894 Pred Discriminator Loss: 0.583744 spatial Discriminator Loss: 0.519679 temporal Discriminator Loss: 0.878430
+2023-11-04 22:47: **********Train Epoch 1: Averaged Generator Loss: 127.563158, Averaged Pred Discriminator Loss: 0.562819, Averaged spatial Discriminator Loss: 0.549913, Averaged temporal Discriminator Loss: 0.537819
+2023-11-04 22:47: **********Val Epoch 1: average Loss: 46.151165
+2023-11-04 22:47: *********************************Current best model saved!
+2023-11-04 22:47: Train Epoch 2: 0/158 Generator Loss: 45.369164 Pred Discriminator Loss: 0.556483 spatial Discriminator Loss: 0.483764 temporal Discriminator Loss: 0.776629
+2023-11-04 22:47: Train Epoch 2: 20/158 Generator Loss: 33.738861 Pred Discriminator Loss: 0.597363 spatial Discriminator Loss: 0.544227 temporal Discriminator Loss: 0.671831
+2023-11-04 22:47: Train Epoch 2: 40/158 Generator Loss: 33.404430 Pred Discriminator Loss: 0.577612 spatial Discriminator Loss: 0.506608 temporal Discriminator Loss: 0.743085
+2023-11-04 22:47: Train Epoch 2: 60/158 Generator Loss: 29.229431 Pred Discriminator Loss: 0.591487 spatial Discriminator Loss: 0.555925 temporal Discriminator Loss: 0.690639
+2023-11-04 22:47: Train Epoch 2: 80/158 Generator Loss: 28.458952 Pred Discriminator Loss: 0.598074 spatial Discriminator Loss: 0.569339 temporal Discriminator Loss: 0.612284
+2023-11-04 22:48: Train Epoch 2: 100/158 Generator Loss: 27.846899 Pred Discriminator Loss: 0.603179 spatial Discriminator Loss: 0.594654 temporal Discriminator Loss: 0.734854
+2023-11-04 22:48: Train Epoch 2: 120/158 Generator Loss: 25.488060 Pred Discriminator Loss: 0.608788 spatial Discriminator Loss: 0.593770 temporal Discriminator Loss: 0.607842
+2023-11-04 22:48: Train Epoch 2: 140/158 Generator Loss: 28.100838 Pred Discriminator Loss: 0.599564 spatial Discriminator Loss: 0.586101 temporal Discriminator Loss: 0.593123
+2023-11-04 22:48: **********Train Epoch 2: Averaged Generator Loss: 31.278044, Averaged Pred Discriminator Loss: 0.594360, Averaged spatial Discriminator Loss: 0.553408, Averaged temporal Discriminator Loss: 0.646840
+2023-11-04 22:48: **********Val Epoch 2: average Loss: 24.557635
+2023-11-04 22:48: *********************************Current best model saved!
+2023-11-04 22:48: Train Epoch 3: 0/158 Generator Loss: 25.826504 Pred Discriminator Loss: 0.625663 spatial Discriminator Loss: 0.660390 temporal Discriminator Loss: 0.641469
+2023-11-04 22:48: Train Epoch 3: 20/158 Generator Loss: 26.325422 Pred Discriminator Loss: 0.617218 spatial Discriminator Loss: 0.654124 temporal Discriminator Loss: 0.631661
+2023-11-04 22:48: Train Epoch 3: 40/158 Generator Loss: 21.580687 Pred Discriminator Loss: 0.644403 spatial Discriminator Loss: 0.682314 temporal Discriminator Loss: 0.760737
+2023-11-04 22:49: Train Epoch 3: 60/158 Generator Loss: 24.460508 Pred Discriminator Loss: 0.617769 spatial Discriminator Loss: 0.669428 temporal Discriminator Loss: 0.724989
+2023-11-04 22:49: Train Epoch 3: 80/158 Generator Loss: 25.279297 Pred Discriminator Loss: 0.613141 spatial Discriminator Loss: 0.642493 temporal Discriminator Loss: 0.801763
+2023-11-04 22:49: Train Epoch 3: 100/158 Generator Loss: 23.303894 Pred Discriminator Loss: 0.624940 spatial Discriminator Loss: 0.641992 temporal Discriminator Loss: 0.784395
+2023-11-04 22:49: Train Epoch 3: 120/158 Generator Loss: 24.983870 Pred Discriminator Loss: 0.612128 spatial Discriminator Loss: 0.671518 temporal Discriminator Loss: 0.711396
+2023-11-04 22:49: Train Epoch 3: 140/158 Generator Loss: 23.366892 Pred Discriminator Loss: 0.629317 spatial Discriminator Loss: 0.666609 temporal Discriminator Loss: 0.771484
+2023-11-04 22:49: **********Train Epoch 3: Averaged Generator Loss: 24.660299, Averaged Pred Discriminator Loss: 0.627305, Averaged spatial Discriminator Loss: 0.652084, Averaged temporal Discriminator Loss: 0.731166
+2023-11-04 22:49: **********Val Epoch 3: average Loss: 22.107422
+2023-11-04 22:49: *********************************Current best model saved!
+2023-11-04 22:49: Train Epoch 4: 0/158 Generator Loss: 21.820591 Pred Discriminator Loss: 0.636672 spatial Discriminator Loss: 0.699498 temporal Discriminator Loss: 0.667811
+2023-11-04 22:50: Train Epoch 4: 20/158 Generator Loss: 24.585791 Pred Discriminator Loss: 0.624542 spatial Discriminator Loss: 0.678778 temporal Discriminator Loss: 0.721485
+2023-11-04 22:50: Train Epoch 4: 40/158 Generator Loss: 23.492115 Pred Discriminator Loss: 0.640267 spatial Discriminator Loss: 0.668782 temporal Discriminator Loss: 0.728509
+2023-11-04 22:50: Train Epoch 4: 60/158 Generator Loss: 22.195593 Pred Discriminator Loss: 0.630223 spatial Discriminator Loss: 0.677354 temporal Discriminator Loss: 0.767509
+2023-11-04 22:50: Train Epoch 4: 80/158 Generator Loss: 23.717670 Pred Discriminator Loss: 0.638429 spatial Discriminator Loss: 0.678485 temporal Discriminator Loss: 0.705259
+2023-11-04 22:50: Train Epoch 4: 100/158 Generator Loss: 22.768881 Pred Discriminator Loss: 0.638821 spatial Discriminator Loss: 0.677067 temporal Discriminator Loss: 0.715507
+2023-11-04 22:50: Train Epoch 4: 120/158 Generator Loss: 22.574461 Pred Discriminator Loss: 0.641995 spatial Discriminator Loss: 0.693790 temporal Discriminator Loss: 0.705060
+2023-11-04 22:51: Train Epoch 4: 140/158 Generator Loss: 21.310635 Pred Discriminator Loss: 0.697611 spatial Discriminator Loss: 0.685544 temporal Discriminator Loss: 0.673067
+2023-11-04 22:51: **********Train Epoch 4: Averaged Generator Loss: 23.064898, Averaged Pred Discriminator Loss: 0.642092, Averaged spatial Discriminator Loss: 0.679481, Averaged temporal Discriminator Loss: 0.724941
+2023-11-04 22:51: **********Val Epoch 4: average Loss: 20.845255
+2023-11-04 22:51: *********************************Current best model saved!
+2023-11-04 22:51: Train Epoch 5: 0/158 Generator Loss: 24.092884 Pred Discriminator Loss: 0.622980 spatial Discriminator Loss: 0.671032 temporal Discriminator Loss: 0.783672
+2023-11-04 22:51: Train Epoch 5: 20/158 Generator Loss: 22.585943 Pred Discriminator Loss: 0.640167 spatial Discriminator Loss: 0.695847 temporal Discriminator Loss: 0.713248
+2023-11-04 22:51: Train Epoch 5: 40/158 Generator Loss: 23.269955 Pred Discriminator Loss: 0.621130 spatial Discriminator Loss: 0.685314 temporal Discriminator Loss: 0.710996
+2023-11-04 22:51: Train Epoch 5: 60/158 Generator Loss: 21.455647 Pred Discriminator Loss: 0.635722 spatial Discriminator Loss: 0.695664 temporal Discriminator Loss: 0.713727
+2023-11-04 22:51: Train Epoch 5: 80/158 Generator Loss: 23.506336 Pred Discriminator Loss: 0.627761 spatial Discriminator Loss: 0.687769 temporal Discriminator Loss: 0.711489
+2023-11-04 22:52: Train Epoch 5: 100/158 Generator Loss: 23.417675 Pred Discriminator Loss: 0.629701 spatial Discriminator Loss: 0.692739 temporal Discriminator Loss: 0.706862
+2023-11-04 22:52: Train Epoch 5: 120/158 Generator Loss: 22.039019 Pred Discriminator Loss: 0.631796 spatial Discriminator Loss: 0.680089 temporal Discriminator Loss: 0.715930
+2023-11-04 22:52: Train Epoch 5: 140/158 Generator Loss: 23.224518 Pred Discriminator Loss: 0.624578 spatial Discriminator Loss: 0.687373 temporal Discriminator Loss: 0.690866
+2023-11-04 22:52: **********Train Epoch 5: Averaged Generator Loss: 22.334087, Averaged Pred Discriminator Loss: 0.637825, Averaged spatial Discriminator Loss: 0.685684, Averaged temporal Discriminator Loss: 0.710824
+2023-11-04 22:52: **********Val Epoch 5: average Loss: 20.535011
+2023-11-04 22:52: *********************************Current best model saved!
+2023-11-04 22:52: Train Epoch 6: 0/158 Generator Loss: 20.906008 Pred Discriminator Loss: 0.640871 spatial Discriminator Loss: 0.687926 temporal Discriminator Loss: 0.722322
+2023-11-04 22:52: Train Epoch 6: 20/158 Generator Loss: 21.681063 Pred Discriminator Loss: 0.628695 spatial Discriminator Loss: 0.683223 temporal Discriminator Loss: 0.716548
+2023-11-04 22:52: Train Epoch 6: 40/158 Generator Loss: 22.015015 Pred Discriminator Loss: 0.616110 spatial Discriminator Loss: 0.681506 temporal Discriminator Loss: 0.701459
+2023-11-04 22:53: Train Epoch 6: 60/158 Generator Loss: 21.577879 Pred Discriminator Loss: 0.621221 spatial Discriminator Loss: 0.687317 temporal Discriminator Loss: 0.693586
+2023-11-04 22:53: Train Epoch 6: 80/158 Generator Loss: 22.754982 Pred Discriminator Loss: 0.625446 spatial Discriminator Loss: 0.692452 temporal Discriminator Loss: 0.719398
+2023-11-04 22:53: Train Epoch 6: 100/158 Generator Loss: 21.472755 Pred Discriminator Loss: 0.633346 spatial Discriminator Loss: 0.691170 temporal Discriminator Loss: 0.727761
+2023-11-04 22:53: Train Epoch 6: 120/158 Generator Loss: 23.412109 Pred Discriminator Loss: 0.618269 spatial Discriminator Loss: 0.683676 temporal Discriminator Loss: 0.705997
+2023-11-04 22:53: Train Epoch 6: 140/158 Generator Loss: 22.954247 Pred Discriminator Loss: 0.617624 spatial Discriminator Loss: 0.682138 temporal Discriminator Loss: 0.693620
+2023-11-04 22:53: **********Train Epoch 6: Averaged Generator Loss: 22.033525, Averaged Pred Discriminator Loss: 0.633011, Averaged spatial Discriminator Loss: 0.687868, Averaged temporal Discriminator Loss: 0.705544
+2023-11-04 22:53: **********Val Epoch 6: average Loss: 20.020529
+2023-11-04 22:53: *********************************Current best model saved!
+2023-11-04 22:53: Train Epoch 7: 0/158 Generator Loss: 21.754763 Pred Discriminator Loss: 0.652863 spatial Discriminator Loss: 0.690783 temporal Discriminator Loss: 0.697200
+2023-11-04 22:54: Train Epoch 7: 20/158 Generator Loss: 23.547634 Pred Discriminator Loss: 0.609762 spatial Discriminator Loss: 0.688561 temporal Discriminator Loss: 0.716697
+2023-11-04 22:54: Train Epoch 7: 40/158 Generator Loss: 22.081186 Pred Discriminator Loss: 0.633436 spatial Discriminator Loss: 0.690937 temporal Discriminator Loss: 0.701239
+2023-11-04 22:54: Train Epoch 7: 60/158 Generator Loss: 20.229309 Pred Discriminator Loss: 0.628578 spatial Discriminator Loss: 0.691757 temporal Discriminator Loss: 0.713231
+2023-11-04 22:54: Train Epoch 7: 80/158 Generator Loss: 22.326820 Pred Discriminator Loss: 0.635146 spatial Discriminator Loss: 0.690466 temporal Discriminator Loss: 0.691493
+2023-11-04 22:54: Train Epoch 7: 100/158 Generator Loss: 20.499655 Pred Discriminator Loss: 0.627876 spatial Discriminator Loss: 0.692314 temporal Discriminator Loss: 0.730736
+2023-11-04 22:54: Train Epoch 7: 120/158 Generator Loss: 22.293858 Pred Discriminator Loss: 0.649868 spatial Discriminator Loss: 0.684763 temporal Discriminator Loss: 0.689314
+2023-11-04 22:55: Train Epoch 7: 140/158 Generator Loss: 20.831003 Pred Discriminator Loss: 0.629703 spatial Discriminator Loss: 0.689330 temporal Discriminator Loss: 0.710042
+2023-11-04 22:55: **********Train Epoch 7: Averaged Generator Loss: 21.864736, Averaged Pred Discriminator Loss: 0.627448, Averaged spatial Discriminator Loss: 0.688553, Averaged temporal Discriminator Loss: 0.705708
+2023-11-04 22:55: **********Val Epoch 7: average Loss: 19.937021
+2023-11-04 22:55: *********************************Current best model saved!
+2023-11-04 22:55: Train Epoch 8: 0/158 Generator Loss: 21.466070 Pred Discriminator Loss: 0.603571 spatial Discriminator Loss: 0.684830 temporal Discriminator Loss: 0.706821
+2023-11-04 22:55: Train Epoch 8: 20/158 Generator Loss: 23.470963 Pred Discriminator Loss: 0.615500 spatial Discriminator Loss: 0.684590 temporal Discriminator Loss: 0.703125
+2023-11-04 22:55: Train Epoch 8: 40/158 Generator Loss: 20.663464 Pred Discriminator Loss: 0.626888 spatial Discriminator Loss: 0.691205 temporal Discriminator Loss: 0.699330
+2023-11-04 22:55: Train Epoch 8: 60/158 Generator Loss: 21.043064 Pred Discriminator Loss: 0.630193 spatial Discriminator Loss: 0.693439 temporal Discriminator Loss: 0.694463
+2023-11-04 22:55: Train Epoch 8: 80/158 Generator Loss: 20.825253 Pred Discriminator Loss: 0.609420 spatial Discriminator Loss: 0.688670 temporal Discriminator Loss: 0.720943
+2023-11-04 22:56: Train Epoch 8: 100/158 Generator Loss: 22.521833 Pred Discriminator Loss: 0.595275 spatial Discriminator Loss: 0.687737 temporal Discriminator Loss: 0.668166
+2023-11-04 22:56: Train Epoch 8: 120/158 Generator Loss: 21.385653 Pred Discriminator Loss: 0.605083 spatial Discriminator Loss: 0.689598 temporal Discriminator Loss: 0.710063
+2023-11-04 22:56: Train Epoch 8: 140/158 Generator Loss: 20.250481 Pred Discriminator Loss: 0.619144 spatial Discriminator Loss: 0.691816 temporal Discriminator Loss: 0.690709
+2023-11-04 22:56: **********Train Epoch 8: Averaged Generator Loss: 21.570679, Averaged Pred Discriminator Loss: 0.611321, Averaged spatial Discriminator Loss: 0.689801, Averaged temporal Discriminator Loss: 0.701419
+2023-11-04 22:56: **********Val Epoch 8: average Loss: 19.706697
+2023-11-04 22:56: *********************************Current best model saved!
+2023-11-04 22:56: Train Epoch 9: 0/158 Generator Loss: 21.108984 Pred Discriminator Loss: 0.595592 spatial Discriminator Loss: 0.691484 temporal Discriminator Loss: 0.705205
+2023-11-04 22:56: Train Epoch 9: 20/158 Generator Loss: 20.247852 Pred Discriminator Loss: 0.606677 spatial Discriminator Loss: 0.686857 temporal Discriminator Loss: 0.694854
+2023-11-04 22:56: Train Epoch 9: 40/158 Generator Loss: 22.471632 Pred Discriminator Loss: 0.606203 spatial Discriminator Loss: 0.691804 temporal Discriminator Loss: 0.711681
+2023-11-04 22:57: Train Epoch 9: 60/158 Generator Loss: 23.152946 Pred Discriminator Loss: 0.581496 spatial Discriminator Loss: 0.690571 temporal Discriminator Loss: 0.703141
+2023-11-04 22:57: Train Epoch 9: 80/158 Generator Loss: 22.048704 Pred Discriminator Loss: 0.636504 spatial Discriminator Loss: 0.687127 temporal Discriminator Loss: 0.697699
+2023-11-04 22:57: Train Epoch 9: 100/158 Generator Loss: 24.191559 Pred Discriminator Loss: 0.613119 spatial Discriminator Loss: 0.687894 temporal Discriminator Loss: 0.700656
+2023-11-04 22:57: Train Epoch 9: 120/158 Generator Loss: 22.237999 Pred Discriminator Loss: 0.603253 spatial Discriminator Loss: 0.691385 temporal Discriminator Loss: 0.695316
+2023-11-04 22:57: Train Epoch 9: 140/158 Generator Loss: 21.251589 Pred Discriminator Loss: 0.585961 spatial Discriminator Loss: 0.688584 temporal Discriminator Loss: 0.705251
+2023-11-04 22:57: **********Train Epoch 9: Averaged Generator Loss: 21.477261, Averaged Pred Discriminator Loss: 0.608099, Averaged spatial Discriminator Loss: 0.690402, Averaged temporal Discriminator Loss: 0.699342
+2023-11-04 22:58: **********Val Epoch 9: average Loss: 19.671222
+2023-11-04 22:58: *********************************Current best model saved!
+2023-11-04 22:58: Train Epoch 10: 0/158 Generator Loss: 22.213127 Pred Discriminator Loss: 0.584203 spatial Discriminator Loss: 0.683960 temporal Discriminator Loss: 0.700137
+2023-11-04 22:58: Train Epoch 10: 20/158 Generator Loss: 22.188408 Pred Discriminator Loss: 0.580510 spatial Discriminator Loss: 0.698072 temporal Discriminator Loss: 0.707286
+2023-11-04 22:58: Train Epoch 10: 40/158 Generator Loss: 21.970221 Pred Discriminator Loss: 0.604781 spatial Discriminator Loss: 0.686432 temporal Discriminator Loss: 0.698494
+2023-11-04 22:58: Train Epoch 10: 60/158 Generator Loss: 21.403582 Pred Discriminator Loss: 0.639898 spatial Discriminator Loss: 0.684265 temporal Discriminator Loss: 0.697944
+2023-11-04 22:58: Train Epoch 10: 80/158 Generator Loss: 21.470608 Pred Discriminator Loss: 0.611979 spatial Discriminator Loss: 0.686918 temporal Discriminator Loss: 0.697432
+2023-11-04 22:58: Train Epoch 10: 100/158 Generator Loss: 22.645454 Pred Discriminator Loss: 0.579650 spatial Discriminator Loss: 0.689010 temporal Discriminator Loss: 0.704814
+2023-11-04 22:58: Train Epoch 10: 120/158 Generator Loss: 19.477381 Pred Discriminator Loss: 0.605099 spatial Discriminator Loss: 0.695021 temporal Discriminator Loss: 0.687810
+2023-11-04 22:59: Train Epoch 10: 140/158 Generator Loss: 22.422743 Pred Discriminator Loss: 0.596828 spatial Discriminator Loss: 0.690163 temporal Discriminator Loss: 0.701525
+2023-11-04 22:59: **********Train Epoch 10: Averaged Generator Loss: 21.345684, Averaged Pred Discriminator Loss: 0.597764, Averaged spatial Discriminator Loss: 0.690822, Averaged temporal Discriminator Loss: 0.699181
+2023-11-04 22:59: **********Val Epoch 10: average Loss: 19.604384
+2023-11-04 22:59: *********************************Current best model saved!
+2023-11-04 22:59: Train Epoch 11: 0/158 Generator Loss: 21.443689 Pred Discriminator Loss: 0.633808 spatial Discriminator Loss: 0.690169 temporal Discriminator Loss: 0.702198
+2023-11-04 22:59: Train Epoch 11: 20/158 Generator Loss: 22.339848 Pred Discriminator Loss: 0.589483 spatial Discriminator Loss: 0.695439 temporal Discriminator Loss: 0.700646
+2023-11-04 22:59: Train Epoch 11: 40/158 Generator Loss: 22.277790 Pred Discriminator Loss: 0.580181 spatial Discriminator Loss: 0.692119 temporal Discriminator Loss: 0.690770
+2023-11-04 22:59: Train Epoch 11: 60/158 Generator Loss: 20.898045 Pred Discriminator Loss: 0.636115 spatial Discriminator Loss: 0.695912 temporal Discriminator Loss: 0.699483
+2023-11-04 22:59: Train Epoch 11: 80/158 Generator Loss: 20.729691 Pred Discriminator Loss: 0.594774 spatial Discriminator Loss: 0.691439 temporal Discriminator Loss: 0.692541
+2023-11-04 23:00: Train Epoch 11: 100/158 Generator Loss: 21.251116 Pred Discriminator Loss: 0.565277 spatial Discriminator Loss: 0.692073 temporal Discriminator Loss: 0.704175
+2023-11-04 23:00: Train Epoch 11: 120/158 Generator Loss: 24.485779 Pred Discriminator Loss: 0.558949 spatial Discriminator Loss: 0.691103 temporal Discriminator Loss: 0.693945
+2023-11-04 23:00: Train Epoch 11: 140/158 Generator Loss: 21.207310 Pred Discriminator Loss: 0.572677 spatial Discriminator Loss: 0.693400 temporal Discriminator Loss: 0.693776
+2023-11-04 23:00: **********Train Epoch 11: Averaged Generator Loss: 21.211341, Averaged Pred Discriminator Loss: 0.590358, Averaged spatial Discriminator Loss: 0.691247, Averaged temporal Discriminator Loss: 0.696982
+2023-11-04 23:00: **********Val Epoch 11: average Loss: 19.541099
+2023-11-04 23:00: *********************************Current best model saved!
+2023-11-04 23:00: Train Epoch 12: 0/158 Generator Loss: 22.001057 Pred Discriminator Loss: 0.599408 spatial Discriminator Loss: 0.693974 temporal Discriminator Loss: 0.697951
+2023-11-04 23:00: Train Epoch 12: 20/158 Generator Loss: 21.018608 Pred Discriminator Loss: 0.578474 spatial Discriminator Loss: 0.690212 temporal Discriminator Loss: 0.702259
+2023-11-04 23:00: Train Epoch 12: 40/158 Generator Loss: 20.724218 Pred Discriminator Loss: 0.614142 spatial Discriminator Loss: 0.693261 temporal Discriminator Loss: 0.696161
+2023-11-04 23:01: Train Epoch 12: 60/158 Generator Loss: 19.746277 Pred Discriminator Loss: 0.596763 spatial Discriminator Loss: 0.688790 temporal Discriminator Loss: 0.694097
+2023-11-04 23:01: Train Epoch 12: 80/158 Generator Loss: 19.643555 Pred Discriminator Loss: 0.590401 spatial Discriminator Loss: 0.690520 temporal Discriminator Loss: 0.708385
+2023-11-04 23:01: Train Epoch 12: 100/158 Generator Loss: 21.024363 Pred Discriminator Loss: 0.586505 spatial Discriminator Loss: 0.692828 temporal Discriminator Loss: 0.691911
+2023-11-04 23:01: Train Epoch 12: 120/158 Generator Loss: 19.605160 Pred Discriminator Loss: 0.603629 spatial Discriminator Loss: 0.690631 temporal Discriminator Loss: 0.697056
+2023-11-04 23:01: Train Epoch 12: 140/158 Generator Loss: 21.113031 Pred Discriminator Loss: 0.582156 spatial Discriminator Loss: 0.690053 temporal Discriminator Loss: 0.692850
+2023-11-04 23:01: **********Train Epoch 12: Averaged Generator Loss: 21.136447, Averaged Pred Discriminator Loss: 0.587310, Averaged spatial Discriminator Loss: 0.691611, Averaged temporal Discriminator Loss: 0.697588
+2023-11-04 23:02: **********Val Epoch 12: average Loss: 19.519074
+2023-11-04 23:02: *********************************Current best model saved!
+2023-11-04 23:02: Train Epoch 13: 0/158 Generator Loss: 22.238195 Pred Discriminator Loss: 0.585787 spatial Discriminator Loss: 0.691766 temporal Discriminator Loss: 0.691759
+2023-11-04 23:02: Train Epoch 13: 20/158 Generator Loss: 22.508804 Pred Discriminator Loss: 0.581549 spatial Discriminator Loss: 0.689543 temporal Discriminator Loss: 0.698911
+2023-11-04 23:02: Train Epoch 13: 40/158 Generator Loss: 21.441143 Pred Discriminator Loss: 0.564072 spatial Discriminator Loss: 0.692433 temporal Discriminator Loss: 0.697039
+2023-11-04 23:02: Train Epoch 13: 60/158 Generator Loss: 20.206619 Pred Discriminator Loss: 0.577825 spatial Discriminator Loss: 0.688478 temporal Discriminator Loss: 0.692906
+2023-11-04 23:02: Train Epoch 13: 80/158 Generator Loss: 21.535986 Pred Discriminator Loss: 0.576988 spatial Discriminator Loss: 0.688507 temporal Discriminator Loss: 0.708071
+2023-11-04 23:02: Train Epoch 13: 100/158 Generator Loss: 20.128016 Pred Discriminator Loss: 0.579361 spatial Discriminator Loss: 0.691837 temporal Discriminator Loss: 0.687464
+2023-11-04 23:02: Train Epoch 13: 120/158 Generator Loss: 19.236023 Pred Discriminator Loss: 0.591701 spatial Discriminator Loss: 0.692500 temporal Discriminator Loss: 0.691167
+2023-11-04 23:03: Train Epoch 13: 140/158 Generator Loss: 21.921288 Pred Discriminator Loss: 0.595121 spatial Discriminator Loss: 0.685246 temporal Discriminator Loss: 0.704760
+2023-11-04 23:03: **********Train Epoch 13: Averaged Generator Loss: 21.041631, Averaged Pred Discriminator Loss: 0.584451, Averaged spatial Discriminator Loss: 0.691762, Averaged temporal Discriminator Loss: 0.695602
+2023-11-04 23:03: **********Val Epoch 13: average Loss: 19.383143
+2023-11-04 23:03: *********************************Current best model saved!
+2023-11-04 23:03: Train Epoch 14: 0/158 Generator Loss: 22.418493 Pred Discriminator Loss: 0.617194 spatial Discriminator Loss: 0.697046 temporal Discriminator Loss: 0.699317
+2023-11-04 23:03: Train Epoch 14: 20/158 Generator Loss: 19.591505 Pred Discriminator Loss: 0.594421 spatial Discriminator Loss: 0.693198 temporal Discriminator Loss: 0.695250
+2023-11-04 23:03: Train Epoch 14: 40/158 Generator Loss: 21.888685 Pred Discriminator Loss: 0.557622 spatial Discriminator Loss: 0.692024 temporal Discriminator Loss: 0.689451
+2023-11-04 23:03: Train Epoch 14: 60/158 Generator Loss: 22.088652 Pred Discriminator Loss: 0.556451 spatial Discriminator Loss: 0.689355 temporal Discriminator Loss: 0.695897
+2023-11-04 23:03: Train Epoch 14: 80/158 Generator Loss: 19.675859 Pred Discriminator Loss: 0.574324 spatial Discriminator Loss: 0.690292 temporal Discriminator Loss: 0.688217
+2023-11-04 23:04: Train Epoch 14: 100/158 Generator Loss: 21.214685 Pred Discriminator Loss: 0.574262 spatial Discriminator Loss: 0.692337 temporal Discriminator Loss: 0.701157
+2023-11-04 23:04: Train Epoch 14: 120/158 Generator Loss: 21.777779 Pred Discriminator Loss: 0.562343 spatial Discriminator Loss: 0.689351 temporal Discriminator Loss: 0.699505
+2023-11-04 23:04: Train Epoch 14: 140/158 Generator Loss: 20.232668 Pred Discriminator Loss: 0.570352 spatial Discriminator Loss: 0.692290 temporal Discriminator Loss: 0.692594
+2023-11-04 23:04: **********Train Epoch 14: Averaged Generator Loss: 20.986390, Averaged Pred Discriminator Loss: 0.576597, Averaged spatial Discriminator Loss: 0.691566, Averaged temporal Discriminator Loss: 0.694349
+2023-11-04 23:04: **********Val Epoch 14: average Loss: 19.311640
+2023-11-04 23:04: *********************************Current best model saved!
+2023-11-04 23:04: Train Epoch 15: 0/158 Generator Loss: 20.487890 Pred Discriminator Loss: 0.620679 spatial Discriminator Loss: 0.693746 temporal Discriminator Loss: 0.696597
+2023-11-04 23:04: Train Epoch 15: 20/158 Generator Loss: 21.000263 Pred Discriminator Loss: 0.576182 spatial Discriminator Loss: 0.692393 temporal Discriminator Loss: 0.701735
+2023-11-04 23:05: Train Epoch 15: 40/158 Generator Loss: 20.876823 Pred Discriminator Loss: 0.559961 spatial Discriminator Loss: 0.695018 temporal Discriminator Loss: 0.694020
+2023-11-04 23:05: Train Epoch 15: 60/158 Generator Loss: 21.277618 Pred Discriminator Loss: 0.561385 spatial Discriminator Loss: 0.696453 temporal Discriminator Loss: 0.693212
+2023-11-04 23:05: Train Epoch 15: 80/158 Generator Loss: 21.427910 Pred Discriminator Loss: 0.632013 spatial Discriminator Loss: 0.691783 temporal Discriminator Loss: 0.697070
+2023-11-04 23:05: Train Epoch 15: 100/158 Generator Loss: 21.868855 Pred Discriminator Loss: 0.586309 spatial Discriminator Loss: 0.691836 temporal Discriminator Loss: 0.692454
+2023-11-04 23:05: Train Epoch 15: 120/158 Generator Loss: 21.351435 Pred Discriminator Loss: 0.577291 spatial Discriminator Loss: 0.692676 temporal Discriminator Loss: 0.698843
+2023-11-04 23:05: Train Epoch 15: 140/158 Generator Loss: 22.086884 Pred Discriminator Loss: 0.569089 spatial Discriminator Loss: 0.688268 temporal Discriminator Loss: 0.693332
+2023-11-04 23:05: **********Train Epoch 15: Averaged Generator Loss: 20.949138, Averaged Pred Discriminator Loss: 0.577816, Averaged spatial Discriminator Loss: 0.691337, Averaged temporal Discriminator Loss: 0.694659
+2023-11-04 23:06: **********Val Epoch 15: average Loss: 19.570691
+2023-11-04 23:06: Train Epoch 16: 0/158 Generator Loss: 21.071810 Pred Discriminator Loss: 0.574879 spatial Discriminator Loss: 0.692594 temporal Discriminator Loss: 0.702974
+2023-11-04 23:06: Train Epoch 16: 20/158 Generator Loss: 21.106762 Pred Discriminator Loss: 0.562596 spatial Discriminator Loss: 0.687561 temporal Discriminator Loss: 0.686751
+2023-11-04 23:06: Train Epoch 16: 40/158 Generator Loss: 21.237177 Pred Discriminator Loss: 0.546031 spatial Discriminator Loss: 0.687462 temporal Discriminator Loss: 0.699574
+2023-11-04 23:06: Train Epoch 16: 60/158 Generator Loss: 19.694738 Pred Discriminator Loss: 0.576290 spatial Discriminator Loss: 0.690943 temporal Discriminator Loss: 0.694175
+2023-11-04 23:06: Train Epoch 16: 80/158 Generator Loss: 22.306416 Pred Discriminator Loss: 0.546933 spatial Discriminator Loss: 0.689863 temporal Discriminator Loss: 0.690617
+2023-11-04 23:06: Train Epoch 16: 100/158 Generator Loss: 21.350458 Pred Discriminator Loss: 0.547073 spatial Discriminator Loss: 0.694521 temporal Discriminator Loss: 0.699253
+2023-11-04 23:06: Train Epoch 16: 120/158 Generator Loss: 21.359964 Pred Discriminator Loss: 0.565032 spatial Discriminator Loss: 0.691958 temporal Discriminator Loss: 0.697419
+2023-11-04 23:07: Train Epoch 16: 140/158 Generator Loss: 19.844763 Pred Discriminator Loss: 0.576504 spatial Discriminator Loss: 0.689610 temporal Discriminator Loss: 0.690227
+2023-11-04 23:07: **********Train Epoch 16: Averaged Generator Loss: 20.854186, Averaged Pred Discriminator Loss: 0.566159, Averaged spatial Discriminator Loss: 0.691421, Averaged temporal Discriminator Loss: 0.694698
+2023-11-04 23:07: **********Val Epoch 16: average Loss: 19.456121
+2023-11-04 23:07: Train Epoch 17: 0/158 Generator Loss: 20.426920 Pred Discriminator Loss: 0.571078 spatial Discriminator Loss: 0.684548 temporal Discriminator Loss: 0.692480
+2023-11-04 23:07: Train Epoch 17: 20/158 Generator Loss: 21.069450 Pred Discriminator Loss: 0.547839 spatial Discriminator Loss: 0.693061 temporal Discriminator Loss: 0.698469
+2023-11-04 23:07: Train Epoch 17: 40/158 Generator Loss: 20.324377 Pred Discriminator Loss: 0.557137 spatial Discriminator Loss: 0.689741 temporal Discriminator Loss: 0.695837
+2023-11-04 23:07: Train Epoch 17: 60/158 Generator Loss: 20.254152 Pred Discriminator Loss: 0.579153 spatial Discriminator Loss: 0.691634 temporal Discriminator Loss: 0.690458
+2023-11-04 23:07: Train Epoch 17: 80/158 Generator Loss: 23.364113 Pred Discriminator Loss: 0.562257 spatial Discriminator Loss: 0.692025 temporal Discriminator Loss: 0.687759
+2023-11-04 23:08: Train Epoch 17: 100/158 Generator Loss: 22.048143 Pred Discriminator Loss: 0.581070 spatial Discriminator Loss: 0.695689 temporal Discriminator Loss: 0.698626
+2023-11-04 23:08: Train Epoch 17: 120/158 Generator Loss: 20.641235 Pred Discriminator Loss: 0.575206 spatial Discriminator Loss: 0.687770 temporal Discriminator Loss: 0.705965
+2023-11-04 23:08: Train Epoch 17: 140/158 Generator Loss: 20.763615 Pred Discriminator Loss: 0.582210 spatial Discriminator Loss: 0.689363 temporal Discriminator Loss: 0.687561
+2023-11-04 23:08: **********Train Epoch 17: Averaged Generator Loss: 20.932849, Averaged Pred Discriminator Loss: 0.571277, Averaged spatial Discriminator Loss: 0.691613, Averaged temporal Discriminator Loss: 0.694526
+2023-11-04 23:08: **********Val Epoch 17: average Loss: 19.161699
+2023-11-04 23:08: *********************************Current best model saved!
+2023-11-04 23:08: Train Epoch 18: 0/158 Generator Loss: 22.113956 Pred Discriminator Loss: 0.535510 spatial Discriminator Loss: 0.690777 temporal Discriminator Loss: 0.699526
+2023-11-04 23:08: Train Epoch 18: 20/158 Generator Loss: 20.554689 Pred Discriminator Loss: 0.554668 spatial Discriminator Loss: 0.691814 temporal Discriminator Loss: 0.689933
+2023-11-04 23:09: Train Epoch 18: 40/158 Generator Loss: 20.464077 Pred Discriminator Loss: 0.561307 spatial Discriminator Loss: 0.693533 temporal Discriminator Loss: 0.707698
+2023-11-04 23:09: Train Epoch 18: 60/158 Generator Loss: 20.507414 Pred Discriminator Loss: 0.570739 spatial Discriminator Loss: 0.684856 temporal Discriminator Loss: 0.691788
+2023-11-04 23:09: Train Epoch 18: 80/158 Generator Loss: 21.116301 Pred Discriminator Loss: 0.545443 spatial Discriminator Loss: 0.692461 temporal Discriminator Loss: 0.695041
+2023-11-04 23:09: Train Epoch 18: 100/158 Generator Loss: 21.982258 Pred Discriminator Loss: 0.550286 spatial Discriminator Loss: 0.692788 temporal Discriminator Loss: 0.703663
+2023-11-04 23:09: Train Epoch 18: 120/158 Generator Loss: 20.278774 Pred Discriminator Loss: 0.564123 spatial Discriminator Loss: 0.694157 temporal Discriminator Loss: 0.688762
+2023-11-04 23:09: Train Epoch 18: 140/158 Generator Loss: 22.361107 Pred Discriminator Loss: 0.536385 spatial Discriminator Loss: 0.685329 temporal Discriminator Loss: 0.704840
+2023-11-04 23:09: **********Train Epoch 18: Averaged Generator Loss: 20.741357, Averaged Pred Discriminator Loss: 0.559668, Averaged spatial Discriminator Loss: 0.691604, Averaged temporal Discriminator Loss: 0.693852
+2023-11-04 23:10: **********Val Epoch 18: average Loss: 19.170654
+2023-11-04 23:10: Train Epoch 19: 0/158 Generator Loss: 23.486536 Pred Discriminator Loss: 0.538876 spatial Discriminator Loss: 0.688306 temporal Discriminator Loss: 0.685925
+2023-11-04 23:10: Train Epoch 19: 20/158 Generator Loss: 21.763752 Pred Discriminator Loss: 0.542060 spatial Discriminator Loss: 0.692172 temporal Discriminator Loss: 0.701320
+2023-11-04 23:10: Train Epoch 19: 40/158 Generator Loss: 21.551216 Pred Discriminator Loss: 0.555001 spatial Discriminator Loss: 0.693026 temporal Discriminator Loss: 0.691059
+2023-11-04 23:10: Train Epoch 19: 60/158 Generator Loss: 19.279917 Pred Discriminator Loss: 0.570719 spatial Discriminator Loss: 0.690885 temporal Discriminator Loss: 0.693858
+2023-11-04 23:10: Train Epoch 19: 80/158 Generator Loss: 20.092739 Pred Discriminator Loss: 0.616555 spatial Discriminator Loss: 0.689563 temporal Discriminator Loss: 0.703433
+2023-11-04 23:10: Train Epoch 19: 100/158 Generator Loss: 18.255295 Pred Discriminator Loss: 0.606251 spatial Discriminator Loss: 0.686871 temporal Discriminator Loss: 0.698691
+2023-11-04 23:10: Train Epoch 19: 120/158 Generator Loss: 21.354986 Pred Discriminator Loss: 0.545969 spatial Discriminator Loss: 0.694768 temporal Discriminator Loss: 0.695635
+2023-11-04 23:11: Train Epoch 19: 140/158 Generator Loss: 18.542864 Pred Discriminator Loss: 0.576860 spatial Discriminator Loss: 0.690958 temporal Discriminator Loss: 0.693560
+2023-11-04 23:11: **********Train Epoch 19: Averaged Generator Loss: 20.697756, Averaged Pred Discriminator Loss: 0.572626, Averaged spatial Discriminator Loss: 0.691446, Averaged temporal Discriminator Loss: 0.694746
+2023-11-04 23:11: **********Val Epoch 19: average Loss: 19.183823
+2023-11-04 23:11: Train Epoch 20: 0/158 Generator Loss: 19.738667 Pred Discriminator Loss: 0.576348 spatial Discriminator Loss: 0.690959 temporal Discriminator Loss: 0.699782
+2023-11-04 23:11: Train Epoch 20: 20/158 Generator Loss: 21.796879 Pred Discriminator Loss: 0.552915 spatial Discriminator Loss: 0.693484 temporal Discriminator Loss: 0.696876
+2023-11-04 23:11: Train Epoch 20: 40/158 Generator Loss: 21.187035 Pred Discriminator Loss: 0.546004 spatial Discriminator Loss: 0.692597 temporal Discriminator Loss: 0.691871
+2023-11-04 23:11: Train Epoch 20: 60/158 Generator Loss: 21.685448 Pred Discriminator Loss: 0.544900 spatial Discriminator Loss: 0.692403 temporal Discriminator Loss: 0.685959
