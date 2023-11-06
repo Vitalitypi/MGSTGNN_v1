@@ -145,9 +145,11 @@ class MGSTGNN(nn.Module):
             output_dim,             #输出维度
             num_layers,             #GRU的层数
             embed_dim,              #GNN嵌入维度
-            recent_stamp=2,
             in_steps=12,               #输入的时间长度
             out_steps=12,              #预测的时间长度
+            predict_time=2,
+            gat_hidden=256,
+            mlp_hidden=256,
     ):
         super(MGSTGNN, self).__init__()
         self.num_node = num_nodes
@@ -159,21 +161,21 @@ class MGSTGNN(nn.Module):
         self.num_layers = num_layers
         self.embed_dim = embed_dim
         
-        self.encoder = DSTRNN(adj, dis, num_nodes, input_dim, rnn_units, embed_dim, num_layers, in_steps)
+        self.encoder = DSTRNN(adj, dis, num_nodes, input_dim, rnn_units, embed_dim, num_layers, in_steps, gat_hidden, mlp_hidden)
 
         self.norm = nn.LayerNorm(self.hidden_dim, eps=1e-12)
         self.out_dropout = nn.Dropout(0.1)
 
-        self.end_conv = nn.Conv2d(recent_stamp, out_steps * self.output_dim, kernel_size=(1, self.hidden_dim), bias=True)
+        self.end_conv = nn.Conv2d(predict_time, out_steps * self.output_dim, kernel_size=(1, self.hidden_dim), bias=True)
 
-        self.recent_stamp = recent_stamp
+        self.predict_time = predict_time
     def forward(self, source):
         b,t,n,d = source.size()
         # source: B, T, N, D
         init_state = self.encoder.init_hidden(source.shape[0])#,self.num_node,self.hidden_dim
         output, _ = self.encoder(source, init_state) # B, T, N, hidden
         
-        output = self.out_dropout(self.norm(output[:, -self.recent_stamp:, :, :])) # B, r, N, hidden
+        output = self.out_dropout(self.norm(output[:, -self.predict_time:, :, :])) # B, r, N, hidden
 
         # CNN based predictor
         output = self.end_conv((output)) # B, T*C, N, d'
@@ -184,7 +186,9 @@ class MGSTGNN(nn.Module):
         return output
 
 class DSTRNN(nn.Module):
-    def __init__(self, adj, dis, node_num, dim_in, dim_out, embed_dim, num_layers=1, in_steps=12):
+    def __init__(self, adj, dis, node_num, dim_in, dim_out, embed_dim, num_layers=1, in_steps=12,
+                 gat_hidden=256, mlp_hidden=256,
+                 ):
         super(DSTRNN, self).__init__()
         assert num_layers >= 1, 'At least one GRU layer in the Encoder.'
         self.node_num = node_num
@@ -199,7 +203,7 @@ class DSTRNN(nn.Module):
             GRUCell(node_num, dim_out, dim_out, embed_dim)
             for _ in range(self.num_gru)
         ])
-        self.gats = nn.ModuleList([GAT(adj, dis, dim_in, dim_out) for _ in range(in_steps)])
+        self.gats = nn.ModuleList([GAT(adj, dis, dim_in, dim_out, gat_hidden, mlp_hidden) for _ in range(in_steps)])
         self.norms = nn.ModuleList([nn.LayerNorm(dim_out) for _ in range(in_steps)])
     def forward(self, x, init_state):
         # shape of x: (B, T, N, D)
@@ -396,11 +400,11 @@ class Mlp(nn.Module):
 
 class GAT(nn.Module):
     def __init__(
-            self, adj, dis, dim_in, dim_out, dim_hidden=256, dropout=0.6, heads=1, alpha=0.2, num_x=2, bias=True):
+            self, adj, dis, dim_in, dim_out, gat_hidden, mlp_hidden, dropout=0.6, heads=1, alpha=0.2, num_x=2, bias=True):
         super(GAT, self).__init__()
         self.dropout = dropout
-        self.attentions = [GraphAttentionLayer(adj, dis, dim_in, dim_hidden, dropout=dropout, alpha=alpha, concat=True) for _ in range(heads)]
-        self.output = Mlp(dim_hidden*heads*num_x, dim_hidden, dim_out)
+        self.attentions = [GraphAttentionLayer(adj, dis, dim_in, gat_hidden, dropout=dropout, alpha=alpha, concat=True) for _ in range(heads)]
+        self.output = Mlp(gat_hidden*heads*num_x, mlp_hidden, dim_out)
         # self.output = nn.Conv2d(dim_hidden*heads*2, dim_out, kernel_size=(1,1), bias=bias)
     def forward(self, x, xt):
         '''
@@ -444,7 +448,9 @@ class Network(nn.Module):
             dim_embed_feature,
             periods,
 
-
+            predict_time,
+            gat_hidden,
+            mlp_hidden,
     ):
         super(Network, self).__init__()
         # encoder
@@ -453,7 +459,9 @@ class Network(nn.Module):
                                dim_embed_feature,input_dim,periods)
         adj, dis = get_adj_dis_matrix(dataset, num_nodes)
         self.mgstgnn = MGSTGNN(adj,dis,num_nodes,dim_embed_feature+input_dim,rnn_units,output_dim,
-                               rnn_layers,dim_embed,in_steps=in_steps,out_steps=out_steps)
+                               rnn_layers,dim_embed,in_steps=in_steps,out_steps=out_steps,predict_time=predict_time,
+                               gat_hidden=gat_hidden, mlp_hidden=mlp_hidden
+                        )
     def forward(self,x):
         # 进行encoding
         
@@ -466,6 +474,6 @@ class Network(nn.Module):
 if __name__ == "__main__":
     periods_dim = [24]
     periods_arr = [288]
-    network = Network('PEMS04',307,4,1,12,12,8,32,3,80,periods_dim,6,2,0,8,120,periods_arr)
+    network = Network('PEMS04',307,4,1,12,12,8,32,3,80,periods_dim,6,2,0,8,120,periods_arr,2, 256, 256)
 
     summary(network, [64, 12, 307, 4])

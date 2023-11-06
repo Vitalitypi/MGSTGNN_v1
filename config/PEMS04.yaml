@@ -28,6 +28,10 @@ model:
   rnn_units: 64
   num_layers: 3
   periods: [288,144,96,154,155,333,1888,2124,72,339]
+
+  predict_time: 2
+  gat_hidden: 256
+  mlp_hidden: 256
 train:
   loss_func: mae
   random: False

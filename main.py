@@ -65,7 +65,9 @@ def get_arguments():
     parser.add_argument('--rnn_units', default=config['model']['rnn_units'], type=int)
     parser.add_argument('--num_layers', default=config['model']['num_layers'], type=int)
     parser.add_argument('--periods', default=config['model']['periods'][:config['model']['period_dim']], type=list)
-
+    parser.add_argument('--predict_time', default=config['model']['predict_time'], type=int)
+    parser.add_argument('--gat_hidden', default=config['model']['gat_hidden'], type=int)
+    parser.add_argument('--mlp_hidden', default=config['model']['mlp_hidden'], type=int)
     # train
     parser.add_argument('--loss_func', default=config['train']['loss_func'], type=str)
     parser.add_argument('--seed', default=config['train']['seed'], type=int)
@@ -114,7 +116,7 @@ if __name__ == "__main__":
     generator = Network(DATASET,args.num_nodes,args.input_dim,args.output_dim,args.in_steps,args.out_steps,
                           args.embed_dim,args.rnn_units,args.num_layers,args.input_embedding_dim,
                         args.periods_embedding_dim,args.weekend_embedding_dim,args.holiday_embedding_dim,
-                        args.spatial_embedding_dim,args.adaptive_embedding_dim,args.dim_embed_feature,args.periods)
+                        args.spatial_embedding_dim,args.adaptive_embedding_dim,args.dim_embed_feature,args.periods,args.predict_time, args.gat_hidden, mlp_hidden)
     generator = generator.to(args.device)
     generator = init_model(generator)
 
