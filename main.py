@@ -159,9 +159,10 @@ if __name__ == "__main__":
         loss_G = masked_mae_loss(scaler, mask_value=0.0)
     elif args.loss_func == 'mae':
         loss_G = torch.nn.L1Loss().to(args.device)
-        # loss_G = torch.nn.HuberLoss().to(args.device)
     elif args.loss_func == 'mse':
         loss_G = torch.nn.MSELoss().to(args.device)
+    elif args.loss_func == 'huber':
+        loss_G = torch.nn.HuberLoss().to(args.device)
     else:
         raise ValueError
     loss_D = torch.nn.BCELoss()
