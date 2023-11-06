@@ -37,6 +37,7 @@ period_dim: 1
 periods: [288]
 periods_embedding_dim: [24]
 plot: False
+random: True
 real_value: True
 rnn_units: 64
 seed: 10
@@ -46,6 +47,7 @@ val_ratio: 0.2
 weather_dim: 0
 weekend_dim: 1
 weekend_embedding_dim: 6
+seed: tensor([446])
 *****************Model Parameter*****************
 encoder.node_emb torch.Size([307, 0]) True
 encoder.adaptive_embedding torch.Size([12, 307, 8]) True
@@ -208,55 +210,56 @@ Train:  (10173, 12, 307, 5) (10173, 12, 307, 1)
 Val:  (3375, 12, 307, 5) (3375, 12, 307, 1)
 Test:  (3375, 12, 307, 5) (3375, 12, 307, 1)
 Applying learning rate decay.
-2023-11-06 11:48: Experiment log path in: /mnt/workspace/MGSTGNN/exps/logs/PEMS04/20231106114800
-2023-11-06 11:48: Argument: Namespace(dataset='PEMS04', mode='Train', debug=True, model='MGSTGNN', gpu_id=0, val_ratio=0.2, test_ratio=0.2, in_steps=12, out_steps=12, num_nodes=307, normalizer='std', input_dim=5, flow_dim=1, period_dim=1, weekend_dim=1, holiday_dim=1, hop_dim=1, weather_dim=0, dim_embed_feature=120, input_embedding_dim=80, periods_embedding_dim=[24], weekend_embedding_dim=6, holiday_embedding_dim=2, spatial_embedding_dim=0, adaptive_embedding_dim=8, output_dim=1, embed_dim=6, rnn_units=64, num_layers=3, periods=[288], loss_func='mae', seed=10, batch_size=64, epochs=120, lr_init=0.006, lr_decay=True, lr_decay_rate=0.2, lr_decay_step='80,100', early_stop=True, early_stop_patience=15, grad_norm=False, max_grad_norm=5, real_value=True, mae_thresh=None, mape_thresh=0.0, log_dir='/mnt/workspace/MGSTGNN/exps/logs/PEMS04/20231106114800', log_step=20, plot=False, device=device(type='cuda', index=0))
-2023-11-06 11:48: adaptive_embedding_dim: 8
-2023-11-06 11:48: batch_size: 64
-2023-11-06 11:48: dataset: PEMS04
-2023-11-06 11:48: debug: True
-2023-11-06 11:48: device: cuda:0
-2023-11-06 11:48: dim_embed_feature: 120
-2023-11-06 11:48: early_stop: True
-2023-11-06 11:48: early_stop_patience: 15
-2023-11-06 11:48: embed_dim: 6
-2023-11-06 11:48: epochs: 120
-2023-11-06 11:48: flow_dim: 1
-2023-11-06 11:48: gpu_id: 0
-2023-11-06 11:48: grad_norm: False
-2023-11-06 11:48: holiday_dim: 1
-2023-11-06 11:48: holiday_embedding_dim: 2
-2023-11-06 11:48: hop_dim: 1
-2023-11-06 11:48: in_steps: 12
-2023-11-06 11:48: input_dim: 5
-2023-11-06 11:48: input_embedding_dim: 80
-2023-11-06 11:48: log_dir: /mnt/workspace/MGSTGNN/exps/logs/PEMS04/20231106114800
-2023-11-06 11:48: log_step: 20
-2023-11-06 11:48: loss_func: mae
-2023-11-06 11:48: lr_decay: True
-2023-11-06 11:48: lr_decay_rate: 0.2
-2023-11-06 11:48: lr_decay_step: 80,100
-2023-11-06 11:48: lr_init: 0.006
-2023-11-06 11:48: mae_thresh: None
-2023-11-06 11:48: mape_thresh: 0.0
-2023-11-06 11:48: max_grad_norm: 5
-2023-11-06 11:48: mode: Train
-2023-11-06 11:48: model: MGSTGNN
-2023-11-06 11:48: normalizer: std
-2023-11-06 11:48: num_layers: 3
-2023-11-06 11:48: num_nodes: 307
-2023-11-06 11:48: out_steps: 12
-2023-11-06 11:48: output_dim: 1
-2023-11-06 11:48: period_dim: 1
-2023-11-06 11:48: periods: [288]
-2023-11-06 11:48: periods_embedding_dim: [24]
-2023-11-06 11:48: plot: False
-2023-11-06 11:48: real_value: True
-2023-11-06 11:48: rnn_units: 64
-2023-11-06 11:48: seed: 10
-2023-11-06 11:48: spatial_embedding_dim: 0
-2023-11-06 11:48: test_ratio: 0.2
-2023-11-06 11:48: val_ratio: 0.2
-2023-11-06 11:48: weather_dim: 0
-2023-11-06 11:48: weekend_dim: 1
-2023-11-06 11:48: weekend_embedding_dim: 6
-2023-11-06 11:48: Train Epoch 1: 0/158 Generator Loss: 213.210739 Pred Discriminator Loss: 1.091009 spatial Discriminator Loss: 0.761716 temporal Discriminator Loss: 0.832835
+2023-11-06 11:51: Experiment log path in: /mnt/workspace/MGSTGNN/exps/logs/PEMS04/20231106115135
+2023-11-06 11:51: Argument: Namespace(dataset='PEMS04', mode='Train', debug=True, model='MGSTGNN', gpu_id=0, val_ratio=0.2, test_ratio=0.2, in_steps=12, out_steps=12, num_nodes=307, normalizer='std', input_dim=5, flow_dim=1, period_dim=1, weekend_dim=1, holiday_dim=1, hop_dim=1, weather_dim=0, dim_embed_feature=120, input_embedding_dim=80, periods_embedding_dim=[24], weekend_embedding_dim=6, holiday_embedding_dim=2, spatial_embedding_dim=0, adaptive_embedding_dim=8, output_dim=1, embed_dim=6, rnn_units=64, num_layers=3, periods=[288], loss_func='mae', seed=tensor([446]), random=True, batch_size=64, epochs=120, lr_init=0.006, lr_decay=True, lr_decay_rate=0.2, lr_decay_step='80,100', early_stop=True, early_stop_patience=15, grad_norm=False, max_grad_norm=5, real_value=True, mae_thresh=None, mape_thresh=0.0, log_dir='/mnt/workspace/MGSTGNN/exps/logs/PEMS04/20231106115135', log_step=20, plot=False, device=device(type='cuda', index=0))
+2023-11-06 11:51: adaptive_embedding_dim: 8
+2023-11-06 11:51: batch_size: 64
+2023-11-06 11:51: dataset: PEMS04
+2023-11-06 11:51: debug: True
+2023-11-06 11:51: device: cuda:0
+2023-11-06 11:51: dim_embed_feature: 120
+2023-11-06 11:51: early_stop: True
+2023-11-06 11:51: early_stop_patience: 15
+2023-11-06 11:51: embed_dim: 6
+2023-11-06 11:51: epochs: 120
+2023-11-06 11:51: flow_dim: 1
+2023-11-06 11:51: gpu_id: 0
+2023-11-06 11:51: grad_norm: False
+2023-11-06 11:51: holiday_dim: 1
+2023-11-06 11:51: holiday_embedding_dim: 2
+2023-11-06 11:51: hop_dim: 1
+2023-11-06 11:51: in_steps: 12
+2023-11-06 11:51: input_dim: 5
+2023-11-06 11:51: input_embedding_dim: 80
+2023-11-06 11:51: log_dir: /mnt/workspace/MGSTGNN/exps/logs/PEMS04/20231106115135
+2023-11-06 11:51: log_step: 20
+2023-11-06 11:51: loss_func: mae
+2023-11-06 11:51: lr_decay: True
+2023-11-06 11:51: lr_decay_rate: 0.2
+2023-11-06 11:51: lr_decay_step: 80,100
+2023-11-06 11:51: lr_init: 0.006
+2023-11-06 11:51: mae_thresh: None
+2023-11-06 11:51: mape_thresh: 0.0
+2023-11-06 11:51: max_grad_norm: 5
+2023-11-06 11:51: mode: Train
+2023-11-06 11:51: model: MGSTGNN
+2023-11-06 11:51: normalizer: std
+2023-11-06 11:51: num_layers: 3
+2023-11-06 11:51: num_nodes: 307
+2023-11-06 11:51: out_steps: 12
+2023-11-06 11:51: output_dim: 1
+2023-11-06 11:51: period_dim: 1
+2023-11-06 11:51: periods: [288]
+2023-11-06 11:51: periods_embedding_dim: [24]
+2023-11-06 11:51: plot: False
+2023-11-06 11:51: random: True
+2023-11-06 11:51: real_value: True
+2023-11-06 11:51: rnn_units: 64
+2023-11-06 11:51: seed: tensor([446])
+2023-11-06 11:51: spatial_embedding_dim: 0
+2023-11-06 11:51: test_ratio: 0.2
+2023-11-06 11:51: val_ratio: 0.2
+2023-11-06 11:51: weather_dim: 0
+2023-11-06 11:51: weekend_dim: 1
+2023-11-06 11:51: weekend_embedding_dim: 6
+2023-11-06 11:51: Train Epoch 1: 0/158 Generator Loss: 206.551849 Pred Discriminator Loss: 0.919580 spatial Discriminator Loss: 1.012421 temporal Discriminator Loss: 0.996448

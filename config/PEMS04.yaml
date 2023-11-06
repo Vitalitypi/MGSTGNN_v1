@@ -30,6 +30,7 @@ model:
   periods: [288,144,96,154,155,333,1888,2124,72,339]
 train:
   loss_func: mae
+  random: True
   seed: 10
   batch_size: 64
   epochs: 120

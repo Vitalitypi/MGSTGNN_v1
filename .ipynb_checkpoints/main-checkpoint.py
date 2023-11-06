@@ -69,6 +69,7 @@ def get_arguments():
     # train
     parser.add_argument('--loss_func', default=config['train']['loss_func'], type=str)
     parser.add_argument('--seed', default=config['train']['seed'], type=int)
+    parser.add_argument('--random', default=config['train']['random'], type=eval)
     parser.add_argument('--batch_size', default=config['train']['batch_size'], type=int)
     parser.add_argument('--epochs', default=config['train']['epochs'], type=int)
     parser.add_argument('--lr_init', default=config['train']['lr_init'], type=float)
@@ -105,6 +106,9 @@ def init_model(model):
 
 if __name__ == "__main__":
     args = get_arguments()
+    if args.random:
+        args.seed = torch.randint(1000, (1,)) # set random seed here
+    print("seed:",args.seed)
     args.device = get_device(args)
     # init generator and discriminator model
     generator = Network(DATASET,args.num_nodes,args.input_dim,args.output_dim,args.in_steps,args.out_steps,
