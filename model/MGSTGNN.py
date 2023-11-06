@@ -158,9 +158,6 @@ class MGSTGNN(nn.Module):
         self.out_steps = out_steps
         self.num_layers = num_layers
         self.embed_dim = embed_dim
-
-        self.node_embeddings = nn.Parameter(torch.randn(self.num_node, embed_dim), requires_grad=True)
-        self.time_embeddings = nn.Parameter(torch.randn(self.in_steps, embed_dim), requires_grad=True)
         
         self.encoder = DSTRNN(adj, dis, num_nodes, input_dim, rnn_units, embed_dim, num_layers, in_steps)
 
@@ -174,7 +171,7 @@ class MGSTGNN(nn.Module):
         b,t,n,d = source.size()
         # source: B, T, N, D
         init_state = self.encoder.init_hidden(source.shape[0])#,self.num_node,self.hidden_dim
-        output, _ = self.encoder(source, init_state, self.node_embeddings, self.time_embeddings) # B, T, N, hidden
+        output, _ = self.encoder(source, init_state) # B, T, N, hidden
         
         output = self.out_dropout(self.norm(output[:, -self.recent_stamp:, :, :])) # B, r, N, hidden
 
@@ -195,6 +192,8 @@ class DSTRNN(nn.Module):
         self.num_layers = num_layers
         self.num_gru = num_layers - 1
         self.dim_out = dim_out
+        self.node_embeddings = nn.Parameter(torch.randn(node_num, embed_dim), requires_grad=True)
+        self.time_embeddings = nn.Parameter(torch.randn(in_steps, embed_dim), requires_grad=True)
         self.gru0 = GRUCell(node_num, dim_in, dim_out, embed_dim)
         self.grus = nn.ModuleList([
             GRUCell(node_num, dim_out, dim_out, embed_dim)
@@ -202,9 +201,7 @@ class DSTRNN(nn.Module):
         ])
         self.gats = nn.ModuleList([GAT(adj, dis, dim_in, dim_out) for _ in range(in_steps)])
         self.norms = nn.ModuleList([nn.LayerNorm(dim_out) for _ in range(in_steps)])
-        # self.node_embeddings = nn.Parameter(torch.randn(self.node_num, embed_dim), requires_grad=True)
-        # self.time_embeddings = nn.Parameter(torch.randn(in_steps, embed_dim), requires_grad=True)
-    def forward(self, x, init_state, node_embeddings, time_embeddings):
+    def forward(self, x, init_state):
         # shape of x: (B, T, N, D)
         # shape of init_state: (num_layers, B, N, hidden_dim)
         assert x.shape[2] == self.node_num and x.shape[3] == self.input_dim
@@ -215,7 +212,7 @@ class DSTRNN(nn.Module):
         inner_states = []
         prev = x[:,0]
         for t in range(seq_length):
-            state = self.gru0(current_inputs[:, t, :, :], state, node_embeddings, time_embeddings[t]) # [B, N, hidden_dim]
+            state = self.gru0(current_inputs[:, t, :, :], state, self.node_embeddings, self.time_embeddings[t]) # [B, N, hidden_dim]
             # inner_states.append(state)
             att = self.gats[t](current_inputs[:, t, :, :], prev)
             inner_states.append(self.norms[t](state+att))
@@ -228,7 +225,7 @@ class DSTRNN(nn.Module):
         for t in range(seq_length):
             gru = self.grus[t%self.num_gru]
             prev_state = states[t%self.num_gru]
-            states[t%self.num_gru] = gru(current_inputs[:, t, :, :], prev_state, node_embeddings, time_embeddings[t]) # [B, N, hidden_dim]
+            states[t%self.num_gru] = gru(current_inputs[:, t, :, :], prev_state, self.node_embeddings, self.time_embeddings[t]) # [B, N, hidden_dim]
         states.append(base_state)
         current_inputs = torch.stack(states, dim=1) # [B, num_gru+1, N, D]
         return current_inputs, output_hidden
