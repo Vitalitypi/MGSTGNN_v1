@@ -5,7 +5,7 @@ data:
   val_ratio: 0.2
   test_ratio: 0.2
   normalizer: std
-
+  adj_norm: False
 model:
   input_dim: 5
   flow_dim: 1
@@ -28,6 +28,16 @@ model:
   rnn_units: 64
   num_layers: 3
   periods: [288,144,96,154,155,333,1888,2124,72,339]
+
+  predict_time: 2
+  gat_hidden: 256
+  mlp_hidden: 256
+  gat_drop: 0.6
+  gat_heads: 1
+  gat_alpha: 0.2
+  gat_concat: True
+  mlp_act: 'gelu'
+  mlp_drop: .0
 train:
   loss_func: mae
   random: False

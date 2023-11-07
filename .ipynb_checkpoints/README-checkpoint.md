@@ -2,14 +2,10 @@
 
 ### 1、generate data
 
-`
-
 ```bash
 cd generate
 python generate.py
 ```
-
-`
 
 ### 2、training
 
