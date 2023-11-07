@@ -130,6 +130,8 @@ def get_adj_dis_matrix(dataset, adj_file, num_of_vertices, direction=False, id_f
                 if len(row) != 3:
                     continue
                 i, j, distance = int(row[0]), int(row[1]), float(row[2])
+                if i==j:
+                    continue
                 A[id_dict[i], id_dict[j]] = 1
                 distaneA[id_dict[i], id_dict[j]] = max_dict[dataset] / distance
                 if not direction:

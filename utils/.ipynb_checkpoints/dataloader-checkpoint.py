@@ -10,19 +10,28 @@ from utils.norm import StandardScaler
 def get_dataloader_pems(dataset, batch_size=64, val_ratio=0.2, test_ratio=0.2, in_steps=12, out_steps=12,
                         flow_dim=1, period_dim=1, weekend_dim=1, holiday_dim=1, hop_dim=1, weather_dim=1):
     # load flow data
-    flow = np.load('./dataset/{}/{}.npz'.format(dataset, dataset))['data'][..., :flow_dim]
+    data = np.load('./dataset/{}/{}.npz'.format(dataset, dataset))['data'][..., :flow_dim]
     # load period data
-    period = np.load('./dataset/{}/period.npz'.format(dataset))['data'][..., :period_dim]
+    if period_dim>0:
+        period = np.load('./dataset/{}/period.npz'.format(dataset))['data'][..., :period_dim]
+        data = np.concatenate([data,period],axis=-1)
     # load weekend data
-    weekend = np.load('./dataset/{}/weekend.npz'.format(dataset))['data'][..., :weekend_dim]
+    if weekend_dim>0:
+        weekend = np.load('./dataset/{}/weekend.npz'.format(dataset))['data'][..., :weekend_dim]
+        data = np.concatenate([data,weekend],axis=-1)
     # load holiday data
-    holiday = np.load('./dataset/{}/holiday.npz'.format(dataset))['data'][..., :holiday_dim]
+    if holiday_dim>0:
+        holiday = np.load('./dataset/{}/holiday.npz'.format(dataset))['data'][..., :holiday_dim]
+        data = np.concatenate([data,holiday],axis=-1)
     # load hops data
-    hop = np.load('./dataset/{}/hop.npz'.format(dataset))['data'][...,:hop_dim]
+    if hop_dim>0:
+        hop = np.load('./dataset/{}/hop.npz'.format(dataset))['data'][...,:hop_dim]
+        data = np.concatenate([data,hop],axis=-1)
     # load weather data
-    weather = np.load('./dataset/{}/weather.npz'.format(dataset))['data'][...,:weather_dim]
-    # concatenate all data
-    data = np.concatenate([flow,period,weekend,holiday,hop,weather],axis=-1)
+    if weather_dim>0:
+        weather = np.load('./dataset/{}/weather.npz'.format(dataset))['data'][...,:weather_dim]
+        data = np.concatenate([data,weather],axis=-1)
+    # print the shape of data
     print(data.shape)
     # normalize data(only normalize the first dimension data)
     mean = data[..., 0].mean()
@@ -87,11 +96,11 @@ def get_dataloader_meta_la(args, normalizer='std', tod=False, dow=False, weather
     return train_dataloader, val_dataloader, test_dataloader, scaler
 
 
-def get_adj_dis_matrix(dataset, num_of_vertices, direction=False, id_filename=None):
+def get_adj_dis_matrix(dataset, adj_file, num_of_vertices, direction=False, id_filename=None):
     '''
     Parameters
     ----------
-    distance_df_filename: str, path of the csv file contains edges information
+    adj_file: str, path of the csv file contains edges information
 
     num_of_vertices: int, the number of vertices
 
@@ -106,33 +115,33 @@ def get_adj_dis_matrix(dataset, num_of_vertices, direction=False, id_filename=No
         'PEMS07': 20.539,
         'PEMS08': 3274.4
     }
-    distance_df_filename = './dataset/{}/{}.csv'.format(dataset, dataset)
     A = np.zeros((int(num_of_vertices), int(num_of_vertices)), dtype=np.float32)
     distaneA = np.zeros((int(num_of_vertices), int(num_of_vertices)), dtype=np.float32)
-    # distaneA = np.full((int(num_of_vertices), int(num_of_vertices)),np.inf)
     # if node id in distance_df_file doesn't start from zero,
     # it needs to be remap via id_filename which contains the corresponding id with sorted index.
     if id_filename:
         with open(id_filename, 'r') as f:
             id_dict = {int(i): idx for idx, i in enumerate(f.read().strip().split('\n'))}  # 把节点id（idx）映射成从0开始的索引
 
-        with open(distance_df_filename, 'r') as f:
+        with open(adj_file, 'r') as f:
             f.readline()  # 略过表头那一行
             reader = csv.reader(f)
             for row in reader:
                 if len(row) != 3:
                     continue
                 i, j, distance = int(row[0]), int(row[1]), float(row[2])
+                if i==j:
+                    continue
                 A[id_dict[i], id_dict[j]] = 1
-                distaneA[id_dict[i], id_dict[j]] = distance
+                distaneA[id_dict[i], id_dict[j]] = max_dict[dataset] / distance
                 if not direction:
                     A[id_dict[j], id_dict[i]] = 1
-                    distaneA[id_dict[j], id_dict[i]] = distance
+                    distaneA[id_dict[j], id_dict[i]] = max_dict[dataset] / distance
 
         return A, distaneA  # adj matrix, distance matrix
 
     else:  # distance_df_file: node id starts from zero
-        with open(distance_df_filename, 'r') as f:
+        with open(adj_file, 'r') as f:
             f.readline()
             reader = csv.reader(f)
             for row in reader:
