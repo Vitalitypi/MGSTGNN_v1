@@ -8,7 +8,7 @@ import configparser
 from datetime import datetime
 
 import yaml
-
+import torch.nn.functional as F
 from model.MGSTGNN import Network
 from model.discriminator import Discriminator, Discriminator_spatial, Discriminator_temporal
 # from trainer import Trainer
@@ -22,7 +22,7 @@ Mode = 'Train'
 DATASET = 'PEMS04'
 MODEL = "MGSTGNN"
 DEBUG = 'True'
-
+ADJ_FILE = './dataset/{}/{}.csv'.format(DATASET, DATASET)
 # get configuration
 config_file = './config/{}.yaml'.format(DATASET)
 with open(config_file, "r") as f:
@@ -43,6 +43,7 @@ def get_arguments():
     parser.add_argument('--out_steps', default=config['data']['out_steps'], type=int)
     parser.add_argument('--num_nodes', default=config['data']['num_nodes'], type=int)
     parser.add_argument('--normalizer', default=config['data']['normalizer'], type=str)
+    parser.add_argument('--adj_norm', default=config['data']['adj_norm'], type=eval)
     # model
     parser.add_argument('--input_dim', default=config['model']['input_dim'], type=int)
     parser.add_argument('--flow_dim', default=config['model']['flow_dim'], type=int)
@@ -68,6 +69,12 @@ def get_arguments():
     parser.add_argument('--predict_time', default=config['model']['predict_time'], type=int)
     parser.add_argument('--gat_hidden', default=config['model']['gat_hidden'], type=int)
     parser.add_argument('--mlp_hidden', default=config['model']['mlp_hidden'], type=int)
+    parser.add_argument('--gat_drop', default=config['model']['gat_drop'], type=float)
+    parser.add_argument('--gat_heads', default=config['model']['gat_heads'], type=int)
+    parser.add_argument('--gat_alpha', default=config['model']['gat_alpha'], type=float)
+    parser.add_argument('--gat_concat', default=config['model']['gat_concat'], type=eval)
+    parser.add_argument('--mlp_act', default=config['model']['mlp_act'], type=str)
+    parser.add_argument('--mlp_drop', default=config['model']['mlp_drop'], type=float)
     # train
     parser.add_argument('--loss_func', default=config['train']['loss_func'], type=str)
     parser.add_argument('--seed', default=config['train']['seed'], type=int)
@@ -112,11 +119,53 @@ if __name__ == "__main__":
         args.seed = torch.randint(1000, (1,)) # set random seed here
     print("seed:",args.seed)
     args.device = get_device(args)
+
+    # get norm adj_matrix, norm dis_matrix
+    cuda = True if torch.cuda.is_available() else False
+    TensorFloat = torch.cuda.FloatTensor if cuda else torch.FloatTensor
+    st_adj,st_dis = None,None
+    if args.dataset.lower() == 'pems03':
+        adj_matrix, dis_matrix = get_adj_dis_matrix(DATASET, ADJ_FILE, args.num_nodes, False, "./dataset/PEMS03/PEMS03.txt")
+        if args.adj_norm:
+            adj_matrix, dis_matrix = norm_adj(adj_matrix), norm_adj(dis_matrix)
+    elif args.dataset.lower() in ['metr-la', 'pems-bay']:
+        adj_matrix, dis_matrix = None, None
+    else:
+        adj_matrix, dis_matrix = get_adj_dis_matrix(DATASET, ADJ_FILE, args.num_nodes, False)
+        if args.adj_norm:
+            adj_matrix, dis_matrix = norm_adj(adj_matrix), norm_adj(dis_matrix)
+    if adj_matrix is not None and dis_matrix is not None:
+        # compute spatial-temporal adjacent and distance matrix
+        I = torch.eye(args.num_nodes)
+        st_adj = torch.Tensor(adj_matrix)
+        st_adj = F.pad(
+                st_adj,
+                (args.num_nodes,0,args.num_nodes,0),
+                "constant", 0,
+            )
+        st_adj[:args.num_nodes,args.num_nodes:] = I
+        st_adj[:args.num_nodes,:args.num_nodes] = st_adj[args.num_nodes:,args.num_nodes:]
+        st_adj = st_adj.to(args.device)
+
+        st_dis = torch.Tensor(dis_matrix/np.max(dis_matrix))
+        st_dis = F.pad(
+                st_dis,
+                (args.num_nodes,0,args.num_nodes,0),
+                "constant", 0,
+            )
+        st_dis[:args.num_nodes,args.num_nodes:] = I
+        st_dis[:args.num_nodes,:args.num_nodes] = st_dis[args.num_nodes:,args.num_nodes:]
+        st_dis = st_dis.to(args.device)
+
+        adj_matrix, dis_matrix = TensorFloat(adj_matrix),TensorFloat(dis_matrix)
+
     # init generator and discriminator model
-    generator = Network(DATASET,args.num_nodes,args.input_dim,args.output_dim,args.in_steps,args.out_steps,
-                          args.embed_dim,args.rnn_units,args.num_layers,args.input_embedding_dim,
+    generator = Network(st_adj,st_dis,args.num_nodes,args.input_dim,args.output_dim,args.in_steps,args.out_steps,
+                        args.embed_dim,args.rnn_units,args.num_layers,args.input_embedding_dim,
                         args.periods_embedding_dim,args.weekend_embedding_dim,args.holiday_embedding_dim,
-                        args.spatial_embedding_dim,args.adaptive_embedding_dim,args.dim_embed_feature,args.periods,args.predict_time, args.gat_hidden, mlp_hidden)
+                        args.spatial_embedding_dim,args.adaptive_embedding_dim,args.dim_embed_feature,args.periods,
+                        args.predict_time, args.gat_hidden, args.mlp_hidden, args.gat_drop, args.gat_heads,
+                        args.gat_alpha, args.gat_concat, args.mlp_act, args.mlp_drop)
     generator = generator.to(args.device)
     generator = init_model(generator)
 
@@ -144,17 +193,6 @@ if __name__ == "__main__":
                             args.val_ratio,args.test_ratio,args.in_steps,args.out_steps,
                             args.flow_dim,args.period_dim,args.weekend_dim,args.holiday_dim,
                             args.hop_dim,args.weather_dim)
-    # get norm adj_matrix, norm dis_matrix
-    cuda = True if torch.cuda.is_available() else False
-    TensorFloat = torch.cuda.FloatTensor if cuda else torch.FloatTensor
-    if args.dataset.lower() == 'pems03':
-        adj_matrix, dis_matrix = get_adj_dis_matrix(DATASET, args.num_nodes, False, "./dataset/PEMS03/PEMS03.txt")
-        norm_adj_matrix, norm_dis_matrix = TensorFloat(norm_adj(adj_matrix)), TensorFloat(norm_adj(dis_matrix))
-    elif args.dataset.lower() in ['metr-la', 'pems-bay']:
-        norm_adj_matrix, norm_dis_matrix = None, None
-    else:
-        adj_matrix, dis_matrix = get_adj_dis_matrix(DATASET, args.num_nodes, False)
-        norm_adj_matrix, norm_dis_matrix = TensorFloat(norm_adj(adj_matrix)), TensorFloat(norm_adj(dis_matrix))
 
     # loss function
     if args.loss_func == 'mask_mae':
@@ -194,7 +232,7 @@ if __name__ == "__main__":
                                    amsgrad=False)
 
     # learning rate decay scheduler
-    lr_scheduler_G, lr_scheduler_D, lr_scheduler_spatial = None, None, None
+    lr_scheduler_G, lr_scheduler_D, lr_scheduler_spatial,lr_scheduler_temporal = None, None, None,None
     if args.lr_decay:
         print('Applying learning rate decay.')
         lr_decay_steps = [int(i) for i in list(args.lr_decay_step.split(','))]
@@ -224,7 +262,6 @@ if __name__ == "__main__":
     trainer = Trainer(args,
                       generator, discriminator, discriminator_spatial,discriminator_temporal,
                       train_loader, val_loader, test_loader, scaler,
-                      norm_dis_matrix,
                       loss_G, loss_D,
                       optimizer_G, optimizer_D, optimizer_spatial,optimizer_temporal,
                       lr_scheduler_G, lr_scheduler_D, lr_scheduler_spatial,lr_scheduler_temporal)
@@ -234,6 +271,6 @@ if __name__ == "__main__":
     elif args.mode.lower() == 'test':
         # generator.load_state_dict(torch.load('./log/{}/20221128054144/best_model.pth'.format(args.dataset)))
         print("Load saved model")
-        trainer.test(generator, norm_dis_matrix, trainer.args, test_loader, scaler, trainer.logger, path=f'./exps/log/{args.dataset}/20221130052054/')
+        trainer.test(generator, trainer.args, test_loader, scaler, trainer.logger, path=f'./exps/log/{args.dataset}/20221130052054/')
     else:
         raise ValueError

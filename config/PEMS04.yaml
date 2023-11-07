@@ -5,14 +5,14 @@ data:
   val_ratio: 0.2
   test_ratio: 0.2
   normalizer: std
-
+  adj_norm: False
 model:
-  input_dim: 5
+  input_dim: 1
   flow_dim: 1
-  period_dim: 1
-  weekend_dim: 1
-  holiday_dim: 1
-  hop_dim: 1
+  period_dim: 0
+  weekend_dim: 0
+  holiday_dim: 0
+  hop_dim: 0
   weather_dim: 0
 
   dim_embed_feature: 120
@@ -32,6 +32,12 @@ model:
   predict_time: 2
   gat_hidden: 256
   mlp_hidden: 256
+  gat_drop: 0.6
+  gat_heads: 1
+  gat_alpha: 0.2
+  gat_concat: True
+  mlp_act: 'gelu'
+  mlp_drop: .0
 train:
   loss_func: mae
   random: False

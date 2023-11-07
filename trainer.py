@@ -22,7 +22,6 @@ class Trainer(object):
                  args,
                  generator, discriminator, discriminator_spatial,discriminator_temporal,
                  train_loader, val_loader, test_loader, scaler,
-                 norm_dis_matrix,
                  loss_G, loss_D,
                  optimizer_G, optimizer_D, optimizer_spatial,optimizer_temporal,
                  lr_scheduler_G, lr_scheduler_D, lr_scheduler_spatial,lr_scheduler_temporal):
@@ -50,7 +49,6 @@ class Trainer(object):
         self.val_loader = val_loader
         self.test_loader = test_loader
         self.scaler = scaler
-        self.norm_dis_matrix = norm_dis_matrix
 
         self.train_per_epoch = len(train_loader)
         if val_loader != None:
@@ -272,7 +270,7 @@ class Trainer(object):
         self.generator.load_state_dict(best_model)
         self.save_checkpoint()
         # self.val_epoch(self.args.epochs, self.test_loader)
-        self.test(self.generator, self.norm_dis_matrix, self.args, self.test_loader, self.scaler, self.logger)
+        self.test(self.generator, self.args, self.test_loader, self.scaler, self.logger)
 
     def save_checkpoint(self):
         state = {
@@ -284,7 +282,7 @@ class Trainer(object):
         self.logger.info("Saving current best model to " + self.best_path)
 
     @staticmethod
-    def test(model, norm_dis_matrix, args, data_loader, scaler, logger, path=None):
+    def test(model, args, data_loader, scaler, logger, path=None):
         if path != None:
             check_point = torch.load(os.path.join(path, 'best_model.pth')) # path = args.log_dir
             state_dict = check_point['state_dict']

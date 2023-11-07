@@ -1,8 +1,6 @@
-import numpy as np
 import torch
 from torch import nn
 from torchinfo import summary
-from utils.dataloader import get_adj_dis_matrix
 import torch.nn.functional as F
 
 class Encoder(nn.Module):
@@ -137,8 +135,8 @@ class Encoder(nn.Module):
 class MGSTGNN(nn.Module):
     def __init__(
             self,
-            adj,                    # 邻接矩阵
-            dis,                    # 距离矩阵
+            st_adj,                    # 邻接矩阵
+            st_dis,                    # 距离矩阵
             num_nodes,              #节点数
             input_dim,              #输入维度
             rnn_units,              #GRU循环单元数
@@ -150,6 +148,12 @@ class MGSTGNN(nn.Module):
             predict_time=2,
             gat_hidden=256,
             mlp_hidden=256,
+            gat_drop=0.6,
+            gat_heads=1,
+            gat_alpha=0.2,
+            gat_concat=True,
+            mlp_act=nn.GELU,
+            mlp_drop=.0
     ):
         super(MGSTGNN, self).__init__()
         self.num_node = num_nodes
@@ -161,7 +165,9 @@ class MGSTGNN(nn.Module):
         self.num_layers = num_layers
         self.embed_dim = embed_dim
         
-        self.encoder = DSTRNN(adj, dis, num_nodes, input_dim, rnn_units, embed_dim, num_layers, in_steps, gat_hidden, mlp_hidden)
+        self.encoder = DSTRNN(st_adj, st_dis, num_nodes, input_dim, rnn_units, embed_dim, num_layers, in_steps, gat_hidden,
+                              mlp_hidden,gat_drop=gat_drop,gat_heads=gat_heads,gat_alpha=gat_alpha,gat_concat=gat_concat,
+                              mlp_act=mlp_act, mlp_drop=mlp_drop)
 
         self.norm = nn.LayerNorm(self.hidden_dim, eps=1e-12)
         self.out_dropout = nn.Dropout(0.1)
@@ -186,8 +192,9 @@ class MGSTGNN(nn.Module):
         return output
 
 class DSTRNN(nn.Module):
-    def __init__(self, adj, dis, node_num, dim_in, dim_out, embed_dim, num_layers=1, in_steps=12,
-                 gat_hidden=256, mlp_hidden=256,
+    def __init__(self, st_adj, st_dis, node_num, dim_in, dim_out, embed_dim, num_layers=1, in_steps=12,
+                 gat_hidden=256, mlp_hidden=256, gat_drop=0.6, gat_heads=1, gat_alpha=0.2, gat_concat=True,
+                 mlp_act=nn.GELU, mlp_drop=.0
                  ):
         super(DSTRNN, self).__init__()
         assert num_layers >= 1, 'At least one GRU layer in the Encoder.'
@@ -203,7 +210,8 @@ class DSTRNN(nn.Module):
             GRUCell(node_num, dim_out, dim_out, embed_dim)
             for _ in range(self.num_gru)
         ])
-        self.gats = nn.ModuleList([GAT(adj, dis, dim_in, dim_out, gat_hidden, mlp_hidden) for _ in range(in_steps)])
+        self.gats = nn.ModuleList([GAT(node_num,st_adj, st_dis, dim_in, dim_out, gat_hidden, mlp_hidden, gat_drop, gat_heads, gat_alpha,
+                                       gat_concat, mlp_act, mlp_drop) for _ in range(in_steps)])
         self.norms = nn.ModuleList([nn.LayerNorm(dim_out) for _ in range(in_steps)])
     def forward(self, x, init_state):
         # shape of x: (B, T, N, D)
@@ -296,37 +304,17 @@ class GraphAttentionLayer(nn.Module):
     """
     Simple GAT layer, similar to https://arxiv.org/abs/1710.10903
     """
-    def __init__(self, adj, dis, in_features, out_features, dropout, alpha, concat=True, device_id=0):
+    def __init__(self, num_nodes, st_adj, st_dis, in_features, out_features, dropout, alpha, concat):
         super(GraphAttentionLayer, self).__init__()
         self.dropout = dropout
         self.in_features = in_features
         self.out_features = out_features
         self.alpha = alpha
         self.concat = concat
-        self.num_nodes = adj.shape[0]
-        device = torch.device("cuda", device_id)
-        I = torch.eye(self.num_nodes)
-        adj = torch.Tensor(adj).to(device)
-        adj = F.pad(
-                adj,
-                (self.num_nodes,0,self.num_nodes,0),
-                "constant", 0,
-            )
-        # adj[self.num_nodes:,:self.num_nodes] = I
-        adj[:self.num_nodes,self.num_nodes:] = I
-        adj[:self.num_nodes,:self.num_nodes] = adj[self.num_nodes:,self.num_nodes:]
-
-        self.adj = adj
+        self.num_nodes = num_nodes
+        self.adj = st_adj
         
-        dis = torch.Tensor(dis/np.max(dis)).to(device)
-        dis = F.pad(
-                dis,
-                (self.num_nodes,0,self.num_nodes,0),
-                "constant", 0,
-            )
-        dis[:self.num_nodes,self.num_nodes:] = I
-        dis[:self.num_nodes,:self.num_nodes] = dis[self.num_nodes:,self.num_nodes:]
-        self.dis = dis
+        self.dis = st_dis
         self.W = nn.Parameter(torch.zeros(size=(in_features, out_features)))
         nn.init.xavier_uniform_(self.W.data, gain=1.414)
         self.a = nn.Parameter(torch.empty(size=(2*out_features, 1)))
@@ -400,12 +388,13 @@ class Mlp(nn.Module):
 
 class GAT(nn.Module):
     def __init__(
-            self, adj, dis, dim_in, dim_out, gat_hidden, mlp_hidden, dropout=0.6, heads=1, alpha=0.2, num_x=2, bias=True):
+            self, num_nodes, st_adj, st_dis, dim_in, dim_out, gat_hidden, mlp_hidden, gat_drop=0.6, heads=1, alpha=0.2, concat=True,
+            mlp_act=nn.GELU, mlp_drop=.0):
         super(GAT, self).__init__()
-        self.dropout = dropout
-        self.attentions = [GraphAttentionLayer(adj, dis, dim_in, gat_hidden, dropout=dropout, alpha=alpha, concat=True) for _ in range(heads)]
-        self.output = Mlp(gat_hidden*heads*num_x, mlp_hidden, dim_out)
-        # self.output = nn.Conv2d(dim_hidden*heads*2, dim_out, kernel_size=(1,1), bias=bias)
+        self.gat_drop = gat_drop
+        num_x = st_adj.size(0)//num_nodes
+        self.attentions = [GraphAttentionLayer(num_nodes,st_adj, st_dis, dim_in, gat_hidden, dropout=gat_drop, alpha=alpha, concat=concat) for _ in range(heads)]
+        self.output = Mlp(gat_hidden*heads*num_x, mlp_hidden, dim_out, act_layer=mlp_act, drop=mlp_drop)
     def forward(self, x, xt):
         '''
         Args:
@@ -414,9 +403,9 @@ class GAT(nn.Module):
         Returns:
             x: b,n,do
         '''
-        x = F.dropout(x, self.dropout, training=self.training)
+        x = F.dropout(x, self.gat_drop, training=self.training)
         x = torch.cat([att(x,xt) for att in self.attentions], dim=-1)
-        x = F.dropout(x, self.dropout, training=self.training)
+        x = F.dropout(x, self.gat_drop, training=self.training)
         
         
         x = x.unsqueeze(1)
@@ -428,7 +417,8 @@ class GAT(nn.Module):
 class Network(nn.Module):
     def __init__(
             self,
-            dataset,
+            st_adj,
+            st_dis,
             num_nodes,
             input_dim,
             output_dim,
@@ -451,17 +441,24 @@ class Network(nn.Module):
             predict_time,
             gat_hidden,
             mlp_hidden,
+            gat_drop=0.6,
+            gat_heads=1,
+            gat_alpha=0.2,
+            gat_concat=True,
+            mlp_act='gelu',
+            mlp_drop=.0
     ):
         super(Network, self).__init__()
+        if mlp_act=='gelu':
+            mlp_act = nn.GELU
         # encoder
         self.encoder = Encoder(num_nodes,input_embedding_dim,periods_embedding_dim,weekend_embedding_dim,
                                holiday_embedding_dim,spatial_embedding_dim,adaptive_embedding_dim,
                                dim_embed_feature,input_dim,periods)
-        adj, dis = get_adj_dis_matrix(dataset, num_nodes)
-        self.mgstgnn = MGSTGNN(adj,dis,num_nodes,dim_embed_feature+input_dim,rnn_units,output_dim,
+        self.mgstgnn = MGSTGNN(st_adj,st_dis,num_nodes,dim_embed_feature+input_dim,rnn_units,output_dim,
                                rnn_layers,dim_embed,in_steps=in_steps,out_steps=out_steps,predict_time=predict_time,
-                               gat_hidden=gat_hidden, mlp_hidden=mlp_hidden
-                        )
+                               gat_hidden=gat_hidden, mlp_hidden=mlp_hidden,gat_drop=gat_drop,gat_heads=gat_heads,
+                               gat_alpha=gat_alpha,gat_concat=gat_concat, mlp_act=mlp_act, mlp_drop=mlp_drop)
     def forward(self,x):
         # 进行encoding
         
@@ -474,6 +471,11 @@ class Network(nn.Module):
 if __name__ == "__main__":
     periods_dim = [24]
     periods_arr = [288]
-    network = Network('PEMS04',307,4,1,12,12,8,32,3,80,periods_dim,6,2,0,8,120,periods_arr,2, 256, 256)
+    num_nodes = 307
+    device = torch.device("cuda", 0)
+    st_adj = torch.randn(num_nodes*2,num_nodes*2).to(device)
+    st_dis = torch.randn(num_nodes*2,num_nodes*2).to(device)
+    network = Network(st_adj,st_dis,307,4,1,12,12,8,32,3,80,periods_dim,6,2,0,8,120,periods_arr,2, 256, 256,
+                      0.6, 1, 0.2, True, 'gelu', .0)
 
     summary(network, [64, 12, 307, 4])
