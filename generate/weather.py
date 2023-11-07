@@ -12,19 +12,22 @@ def generate_weather(DATASET):
     time_stamps,num_nodes,dim = flow_data.shape
     min_max = get_min_max(DATASET)
     print("The maximums are: ",min_max[1])
-    weas = []
+    weas = None
     with open('../dataset/{}/weather.csv'.format(DATASET), 'r', encoding='gbk') as f:
             f.readline()
             reader = csv.reader(f)
             for rows in reader:
                 temp,wind,prec = float(rows[0]),float(rows[1]),float(rows[2])
-                for i in range(288):
-                    wea = []
-                    for j in range(num_nodes):
-                        wea.append([temp/min_max[1][0],wind/min_max[1][1],prec/min_max[1][2]])
-                    weas.append(wea)
-
-    weas = np.array(weas)
+                wea = np.empty((288, num_nodes, 3))
+                wea[0].fill(temp/min_max[1][0])
+                wea[1].fill(wind/min_max[1][1])
+                wea[2].fill(prec/min_max[1][2])
+                if weas is None:
+                    weas = wea
+                else:
+                    weas = np.concatenate([weas,wea],axis=0)
+                if weas.shape[0]==time_stamps:
+                    break
     print('Finished! The data shape is: ',weas.shape)
     np.savez('../dataset/{}/weather.npz'.format(DATASET), data=weas)
 
