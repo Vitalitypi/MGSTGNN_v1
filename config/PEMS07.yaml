@@ -14,43 +14,43 @@ model:
   holiday_dim: 1
   hop_dim: 1
   weather_dim: 0
-  dim_discriminator: 256
+  dim_discriminator: 128
   alpha_discriminator: 0.2
 
-  dim_embed_feature: 120
-  input_embedding_dim: 80
-  periods_embedding_dim: [24]
+  dim_embed_feature: 60
+  input_embedding_dim: 32
+  periods_embedding_dim: [12]
   weekend_embedding_dim: 6
   holiday_embedding_dim: 2
   spatial_embedding_dim: 0
   adaptive_embedding_dim: 8
 
   output_dim: 1
-  embed_dim: 6
-  rnn_units: 64
+  embed_dim: 16
+  rnn_units: 32
   num_layers: 3
   periods: [144,288,96,155,336,134,252,2016,72,168]
 
-  predict_time: 2
-  gat_hidden: 256
-  mlp_hidden: 256
+  predict_time: 3
+  gat_hidden: 128
+  mlp_hidden: 128
   gat_drop: 0.6
   gat_heads: 1
   gat_alpha: 0.2
   gat_concat: True
   mlp_act: 'gelu'
   mlp_drop: .0
-  num_gat: 12
+  num_gat: 0
 train:
   loss_func: mae
   random: False
   seed: 10
   batch_size: 64
-  epochs: 120
+  epochs: 100
   lr_init: 0.006
   lr_decay: True
-  lr_decay_rate: 0.2
-  lr_decay_step: 80,100
+  lr_decay_rate: 0.3
+  lr_decay_step: 25,45,75
   early_stop: True
   early_stop_patience: 15
   grad_norm: False

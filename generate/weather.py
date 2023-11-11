@@ -11,6 +11,8 @@ def generate_weather(DATASET):
     print(flow_data.shape)
     time_stamps,num_nodes,dim = flow_data.shape
     min_max = get_min_max(DATASET)
+    if min_max[1][2]==0:
+        min_max[1][2] = 1
     print("The maximums are: ",min_max[1])
     weas = None
     with open('../dataset/{}/weather.csv'.format(DATASET), 'r', encoding='gbk') as f:
