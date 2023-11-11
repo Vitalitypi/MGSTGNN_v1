@@ -225,11 +225,14 @@ class DSTRNN(nn.Module):
         state = init_state[0]
         inner_states = []
         prev = x[:,0]
+        diff = None
         for t in range(seq_length):
-            state = self.gru0(current_inputs[:, t, :, :], state, self.node_embeddings, self.time_embeddings[t]) # [B, N, hidden_dim]
+            inp = current_inputs[:, t, :, :]
+            if t > 0:
+                inp = inp - diff
+            state, diff = self.gru0(inp, state, self.node_embeddings, self.time_embeddings[t]) # [B, N, hidden_dim]
             res = state
             if t < self.num_gat:
-            # inner_states.append(state)
                 att = self.gats[t](current_inputs[:, t, :, :], prev)
                 res = self.norms[t](res+att)
             inner_states.append(res)
@@ -238,11 +241,14 @@ class DSTRNN(nn.Module):
         base_state = state
         current_inputs = torch.stack(inner_states, dim=1) # [B, T, N, D]
         states = [init_state[i+1] for i in range(self.num_gru)]
-        
+
         for t in range(seq_length):
             gru = self.grus[t%self.num_gru]
             prev_state = states[t%self.num_gru]
-            states[t%self.num_gru] = gru(current_inputs[:, t, :, :], prev_state, self.node_embeddings, self.time_embeddings[t]) # [B, N, hidden_dim]
+            inp = current_inputs[:, t, :, :]
+            if t > 0:
+                inp = inp - diff
+            states[t%self.num_gru],diff = gru(inp, prev_state, self.node_embeddings, self.time_embeddings[t]) # [B, N, hidden_dim]
         states.append(base_state)
         current_inputs = torch.stack(states, dim=1) # [B, num_gru+1, N, D]
         return current_inputs, output_hidden
@@ -260,9 +266,9 @@ class GRUCell(nn.Module):
         self.hidden_dim = dim_out
         self.gate = GCN(dim_in+self.hidden_dim, dim_out*2, embed_dim, node_num)
         self.update = GCN(dim_in+self.hidden_dim, dim_out, embed_dim, node_num)
-
+        self.backcast = nn.Linear(dim_out,dim_in)
     def forward(self, x, state, node_embeddings, time_embeddings):
-        
+
         # x: B, num_nodes, input_dim
         # state: B, num_nodes, hidden_dim
         state = state.to(x.device)
@@ -273,9 +279,9 @@ class GRUCell(nn.Module):
         candidate = torch.cat((x, z*state), dim=-1)
         hc = torch.tanh(self.update(candidate, node_embeddings, time_embeddings))
         h = r*state + (1-r)*hc
-        
-        
-        return h
+
+
+        return h, self.backcast(h)
 
     def init_hidden_state(self, batch_size):
         return torch.zeros(batch_size, self.node_num, self.hidden_dim)
@@ -334,8 +340,7 @@ class GraphAttentionLayer(nn.Module):
         Returns:
         '''
         h = torch.cat([ht,h],dim=1)         # b,2n,d
-        adj = self.adj.to(h.device)
-        dis = self.dis.to(h.device)
+        # dis = self.dis.to(h.device)
         w  = self.W.to(h.device)
         Wh = torch.einsum("bni,io->bno",h,w)                    # h.shape: (b, 2N, in_features), Wh.shape: (b, 2N, out_features)
         
@@ -343,7 +348,7 @@ class GraphAttentionLayer(nn.Module):
         e = self._prepare_attentional_mechanism_input(Wh)       # b,2n,2n
         
         zero_vec = -9e15*torch.ones_like(e)
-        attention = torch.where(adj > 0, e, zero_vec)           # b,2n,2n
+        attention = torch.where(self.adj > 0, e, zero_vec)           # b,2n,2n
         # 乘以权重矩阵
         # attention = attention * dis
         attention = F.softmax(attention, dim=1)

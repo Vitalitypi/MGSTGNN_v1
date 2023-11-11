@@ -13,7 +13,7 @@ from model.MGSTGNN import Network
 from model.discriminator import Discriminator, Discriminator_spatial, Discriminator_temporal
 # from trainer import Trainer
 from trainer import Trainer
-from utils.dataloader import get_dataloader_pems, get_adj_dis_matrix, norm_adj, get_dataloader_meta_la
+from utils.dataloader import get_dataloader_pems, get_adj_dis_matrix, norm_adj, get_dataloader_meta_la, construct_adj
 
 # Correlated training configuration
 from utils.util import get_device, print_model_parameters, masked_mae_loss
@@ -139,27 +139,10 @@ if __name__ == "__main__":
             adj_matrix, dis_matrix = norm_adj(adj_matrix), norm_adj(dis_matrix)
     if adj_matrix is not None and dis_matrix is not None:
         # compute spatial-temporal adjacent and distance matrix
-        I = torch.eye(args.num_nodes)
-        st_adj = torch.Tensor(adj_matrix)
-        st_adj = F.pad(
-                st_adj,
-                (args.num_nodes,0,args.num_nodes,0),
-                "constant", 0,
-            )
-        st_adj[:args.num_nodes,args.num_nodes:] = I
-        st_adj[:args.num_nodes,:args.num_nodes] = st_adj[args.num_nodes:,args.num_nodes:]
-        st_adj = st_adj.to(args.device)
-
-        st_dis = torch.Tensor(dis_matrix/np.max(dis_matrix))
-        st_dis = F.pad(
-                st_dis,
-                (args.num_nodes,0,args.num_nodes,0),
-                "constant", 0,
-            )
-        st_dis[:args.num_nodes,args.num_nodes:] = I
-        st_dis[:args.num_nodes,:args.num_nodes] = st_dis[args.num_nodes:,args.num_nodes:]
-        st_dis = st_dis.to(args.device)
-
+        st_adj = construct_adj(adj_matrix,2)
+        st_dis = construct_adj(dis_matrix,2)
+        st_adj = TensorFloat(st_adj).to(args.device)
+        st_dis = TensorFloat(st_dis).to(args.device)
         adj_matrix, dis_matrix = TensorFloat(adj_matrix),TensorFloat(dis_matrix)
 
     # init generator and discriminator model
