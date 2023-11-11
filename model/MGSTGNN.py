@@ -258,8 +258,7 @@ class GRUCell(nn.Module):
         super(GRUCell, self).__init__()
         self.node_num = node_num
         self.hidden_dim = dim_out
-        self.gate_r = GCN(dim_in+self.hidden_dim, dim_out, embed_dim, node_num)
-        self.gate_z = GCN(dim_in+self.hidden_dim, dim_out, embed_dim, node_num)
+        self.gate = GCN(dim_in+self.hidden_dim, dim_out*2, embed_dim, node_num)
         self.update = GCN(dim_in+self.hidden_dim, dim_out, embed_dim, node_num)
 
     def forward(self, x, state, node_embeddings, time_embeddings):
@@ -268,8 +267,9 @@ class GRUCell(nn.Module):
         # state: B, num_nodes, hidden_dim
         state = state.to(x.device)
         input_and_state = torch.cat((x, state), dim=-1) # [B, N, 1+D]
-        z = torch.sigmoid(self.gate_z(input_and_state, node_embeddings,time_embeddings))
-        r = torch.sigmoid(self.gate_r(input_and_state, node_embeddings,time_embeddings))
+        z_r = torch.sigmoid(self.gate_z(input_and_state, node_embeddings,time_embeddings))
+        z,r = torch.split(z_r,self.hidden_dim,dim=-1)
+        # r = torch.sigmoid(self.gate_r(input_and_state, node_embeddings,time_embeddings))
         candidate = torch.cat((x, z*state), dim=-1)
         hc = torch.tanh(self.update(candidate, node_embeddings, time_embeddings))
         h = r*state + (1-r)*hc
