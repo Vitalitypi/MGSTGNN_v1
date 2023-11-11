@@ -52,6 +52,8 @@ def get_arguments():
     parser.add_argument('--holiday_dim', default=config['model']['holiday_dim'], type=int)
     parser.add_argument('--hop_dim', default=config['model']['hop_dim'], type=int)
     parser.add_argument('--weather_dim', default=config['model']['weather_dim'], type=int)
+    parser.add_argument('--dim_discriminator', default=config['model']['dim_discriminator'], type=int)
+    parser.add_argument('--alpha_discriminator', default=config['model']['alpha_discriminator'], type=float)
 
     parser.add_argument('--dim_embed_feature', default=config['model']['dim_embed_feature'], type=int)
     parser.add_argument('--input_embedding_dim', default=config['model']['input_embedding_dim'], type=int)
@@ -75,6 +77,7 @@ def get_arguments():
     parser.add_argument('--gat_concat', default=config['model']['gat_concat'], type=eval)
     parser.add_argument('--mlp_act', default=config['model']['mlp_act'], type=str)
     parser.add_argument('--mlp_drop', default=config['model']['mlp_drop'], type=float)
+    parser.add_argument('--num_gat', default=config['model']['num_gat'], type=int)
     # train
     parser.add_argument('--loss_func', default=config['train']['loss_func'], type=str)
     parser.add_argument('--seed', default=config['train']['seed'], type=int)
@@ -165,7 +168,7 @@ if __name__ == "__main__":
                         args.periods_embedding_dim,args.weekend_embedding_dim,args.holiday_embedding_dim,
                         args.spatial_embedding_dim,args.adaptive_embedding_dim,args.dim_embed_feature,args.periods,
                         args.predict_time, args.gat_hidden, args.mlp_hidden, args.gat_drop, args.gat_heads,
-                        args.gat_alpha, args.gat_concat, args.mlp_act, args.mlp_drop)
+                        args.gat_alpha, args.gat_concat, args.mlp_act, args.mlp_drop,args.num_gat)
     generator = generator.to(args.device)
     generator = init_model(generator)
 

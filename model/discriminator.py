@@ -9,11 +9,11 @@ class Discriminator(nn.Module):
         self.horizon = args.out_steps
         self.num_nodes = args.num_nodes
         self.model = nn.Sequential(
-            nn.Linear(self.num_nodes, 512),
-            nn.LeakyReLU(0.2, inplace=True),
-            nn.Linear(512, 256),
-            nn.LeakyReLU(0.2, inplace=True),
-            nn.Linear(256, 1),
+            nn.Linear(self.num_nodes, args.dim_discriminator),
+            nn.LeakyReLU(args.alpha_discriminator, inplace=True),
+            nn.Linear(args.dim_discriminator, args.dim_discriminator//2),
+            nn.LeakyReLU(args.alpha_discriminator, inplace=True),
+            nn.Linear(args.dim_discriminator//2, 1),
             nn.Sigmoid(),
         )
 
@@ -32,11 +32,11 @@ class Discriminator_spatial(nn.Module):
         self.horizon = args.out_steps
         self.num_nodes = args.num_nodes
         self.model = nn.Sequential(
-            nn.Linear(self.num_nodes, 512),
-            nn.LeakyReLU(0.2, inplace=True),
-            nn.Linear(512, 256),
-            nn.LeakyReLU(0.2, inplace=True),
-            nn.Linear(256, 1),
+            nn.Linear(self.num_nodes, args.dim_discriminator),
+            nn.LeakyReLU(args.alpha_discriminator, inplace=True),
+            nn.Linear(args.dim_discriminator, args.dim_discriminator//2),
+            nn.LeakyReLU(args.alpha_discriminator, inplace=True),
+            nn.Linear(args.dim_discriminator//2, 1),
             nn.Sigmoid(),
         )
 
@@ -54,11 +54,11 @@ class Discriminator_temporal(nn.Module):
         self.horizon = args.out_steps
         self.num_nodes = args.num_nodes
         self.model = nn.Sequential(
-            nn.Linear(self.horizon, 512),
-            nn.LeakyReLU(0.2, inplace=True),
-            nn.Linear(512, 256),
-            nn.LeakyReLU(0.2, inplace=True),
-            nn.Linear(256, 1),
+            nn.Linear(self.horizon, args.dim_discriminator),
+            nn.LeakyReLU(args.alpha_discriminator, inplace=True),
+            nn.Linear(args.dim_discriminator, args.dim_discriminator//2),
+            nn.LeakyReLU(args.alpha_discriminator, inplace=True),
+            nn.Linear(args.dim_discriminator//2, 1),
             nn.Sigmoid(),
         )
 

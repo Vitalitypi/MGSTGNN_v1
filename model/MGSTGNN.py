@@ -153,7 +153,8 @@ class MGSTGNN(nn.Module):
             gat_alpha=0.2,
             gat_concat=True,
             mlp_act=nn.GELU,
-            mlp_drop=.0
+            mlp_drop=.0,
+            num_gat=0
     ):
         super(MGSTGNN, self).__init__()
         self.num_node = num_nodes
@@ -167,7 +168,7 @@ class MGSTGNN(nn.Module):
         
         self.encoder = DSTRNN(st_adj, st_dis, num_nodes, input_dim, rnn_units, embed_dim, num_layers, in_steps, gat_hidden,
                               mlp_hidden,gat_drop=gat_drop,gat_heads=gat_heads,gat_alpha=gat_alpha,gat_concat=gat_concat,
-                              mlp_act=mlp_act, mlp_drop=mlp_drop)
+                              mlp_act=mlp_act, mlp_drop=mlp_drop,num_gat=num_gat)
 
         self.norm = nn.LayerNorm(self.hidden_dim, eps=1e-12)
         self.out_dropout = nn.Dropout(0.1)
@@ -194,7 +195,7 @@ class MGSTGNN(nn.Module):
 class DSTRNN(nn.Module):
     def __init__(self, st_adj, st_dis, node_num, dim_in, dim_out, embed_dim, num_layers=1, in_steps=12,
                  gat_hidden=256, mlp_hidden=256, gat_drop=0.6, gat_heads=1, gat_alpha=0.2, gat_concat=True,
-                 mlp_act=nn.GELU, mlp_drop=.0
+                 mlp_act=nn.GELU, mlp_drop=.0, num_gat=0
                  ):
         super(DSTRNN, self).__init__()
         assert num_layers >= 1, 'At least one GRU layer in the Encoder.'
@@ -203,6 +204,7 @@ class DSTRNN(nn.Module):
         self.num_layers = num_layers
         self.num_gru = num_layers - 1
         self.dim_out = dim_out
+        self.num_gat = num_gat
         self.node_embeddings = nn.Parameter(torch.randn(node_num, embed_dim), requires_grad=True)
         self.time_embeddings = nn.Parameter(torch.randn(in_steps, embed_dim), requires_grad=True)
         self.gru0 = GRUCell(node_num, dim_in, dim_out, embed_dim)
@@ -211,8 +213,8 @@ class DSTRNN(nn.Module):
             for _ in range(self.num_gru)
         ])
         self.gats = nn.ModuleList([GAT(node_num,st_adj, st_dis, dim_in, dim_out, gat_hidden, mlp_hidden, gat_drop, gat_heads, gat_alpha,
-                                       gat_concat, mlp_act, mlp_drop) for _ in range(in_steps)])
-        self.norms = nn.ModuleList([nn.LayerNorm(dim_out) for _ in range(in_steps)])
+                                       gat_concat, mlp_act, mlp_drop) for _ in range(num_gat)])
+        self.norms = nn.ModuleList([nn.LayerNorm(dim_out) for _ in range(num_gat)])
     def forward(self, x, init_state):
         # shape of x: (B, T, N, D)
         # shape of init_state: (num_layers, B, N, hidden_dim)
@@ -225,9 +227,12 @@ class DSTRNN(nn.Module):
         prev = x[:,0]
         for t in range(seq_length):
             state = self.gru0(current_inputs[:, t, :, :], state, self.node_embeddings, self.time_embeddings[t]) # [B, N, hidden_dim]
+            res = state
+            if t < self.num_gat:
             # inner_states.append(state)
-            att = self.gats[t](current_inputs[:, t, :, :], prev)
-            inner_states.append(self.norms[t](state+att))
+                att = self.gats[t](current_inputs[:, t, :, :], prev)
+                res = self.norms[t](res+att)
+            inner_states.append(res)
 
             prev = x[:,t]
         base_state = state
@@ -446,7 +451,8 @@ class Network(nn.Module):
             gat_alpha=0.2,
             gat_concat=True,
             mlp_act='gelu',
-            mlp_drop=.0
+            mlp_drop=.0,
+            num_gat=0
     ):
         super(Network, self).__init__()
         if mlp_act=='gelu':
@@ -458,7 +464,7 @@ class Network(nn.Module):
         self.mgstgnn = MGSTGNN(st_adj,st_dis,num_nodes,dim_embed_feature+input_dim,rnn_units,output_dim,
                                rnn_layers,dim_embed,in_steps=in_steps,out_steps=out_steps,predict_time=predict_time,
                                gat_hidden=gat_hidden, mlp_hidden=mlp_hidden,gat_drop=gat_drop,gat_heads=gat_heads,
-                               gat_alpha=gat_alpha,gat_concat=gat_concat, mlp_act=mlp_act, mlp_drop=mlp_drop)
+                               gat_alpha=gat_alpha,gat_concat=gat_concat, mlp_act=mlp_act, mlp_drop=mlp_drop,num_gat=num_gat)
     def forward(self,x):
         # 进行encoding
         
@@ -476,6 +482,6 @@ if __name__ == "__main__":
     st_adj = torch.randn(num_nodes*2,num_nodes*2).to(device)
     st_dis = torch.randn(num_nodes*2,num_nodes*2).to(device)
     network = Network(st_adj,st_dis,307,4,1,12,12,8,32,3,80,periods_dim,6,2,0,8,120,periods_arr,2, 256, 256,
-                      0.6, 1, 0.2, True, 'gelu', .0)
+                      0.6, 1, 0.2, True, 'gelu', .0, 12)
 
     summary(network, [64, 12, 307, 4])

@@ -218,6 +218,10 @@ class Trainer(object):
         val_loss_list = []
 
         # loss file
+        current_dir = os.path.dirname(os.path.realpath(__file__))
+        loss_dir = os.path.join(current_dir, 'exps/loss')
+        if os.path.isdir(loss_dir) == False:
+            os.makedirs(loss_dir, exist_ok=True)
         loss_file = './exps/loss/{}_{}_{}_val_loss.txt'.format(self.args.model, self.args.dataset,str(datetime.datetime.now()))
         if os.path.exists(loss_file):
             os.remove(loss_file)

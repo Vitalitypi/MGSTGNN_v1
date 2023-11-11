@@ -14,6 +14,8 @@ model:
   holiday_dim: 1
   hop_dim: 1
   weather_dim: 0
+  dim_discriminator: 256
+  alpha_discriminator: 0.2
 
   dim_embed_feature: 120
   input_embedding_dim: 80
@@ -27,7 +29,7 @@ model:
   embed_dim: 6
   rnn_units: 64
   num_layers: 3
-  periods: [288,144,96,154,155,333,1888,2124,72,339]
+  periods: [288,144,155,96,336,134,1984,251,992,405]
 
   predict_time: 2
   gat_hidden: 256
@@ -38,6 +40,7 @@ model:
   gat_concat: True
   mlp_act: 'gelu'
   mlp_drop: .0
+  num_gat: 12
 train:
   loss_func: mae
   random: False
