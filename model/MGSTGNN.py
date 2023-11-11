@@ -267,7 +267,7 @@ class GRUCell(nn.Module):
         # state: B, num_nodes, hidden_dim
         state = state.to(x.device)
         input_and_state = torch.cat((x, state), dim=-1) # [B, N, 1+D]
-        z_r = torch.sigmoid(self.gate_z(input_and_state, node_embeddings,time_embeddings))
+        z_r = torch.sigmoid(self.gate(input_and_state, node_embeddings,time_embeddings))
         z,r = torch.split(z_r,self.hidden_dim,dim=-1)
         # r = torch.sigmoid(self.gate_r(input_and_state, node_embeddings,time_embeddings))
         candidate = torch.cat((x, z*state), dim=-1)
