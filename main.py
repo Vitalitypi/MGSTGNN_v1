@@ -78,6 +78,7 @@ def get_arguments():
     parser.add_argument('--mlp_act', default=config['model']['mlp_act'], type=str)
     parser.add_argument('--mlp_drop', default=config['model']['mlp_drop'], type=float)
     parser.add_argument('--num_gat', default=config['model']['num_gat'], type=int)
+    parser.add_argument('--num_back', default=config['model']['num_back'], type=int)
     # train
     parser.add_argument('--loss_func', default=config['train']['loss_func'], type=str)
     parser.add_argument('--seed', default=config['train']['seed'], type=int)
@@ -151,7 +152,7 @@ if __name__ == "__main__":
                         args.periods_embedding_dim,args.weekend_embedding_dim,args.holiday_embedding_dim,
                         args.spatial_embedding_dim,args.adaptive_embedding_dim,args.dim_embed_feature,args.periods,
                         args.predict_time, args.gat_hidden, args.mlp_hidden, args.gat_drop, args.gat_heads,
-                        args.gat_alpha, args.gat_concat, args.mlp_act, args.mlp_drop,args.num_gat)
+                        args.gat_alpha, args.gat_concat, args.mlp_act, args.mlp_drop,args.num_gat,args.num_back)
     generator = generator.to(args.device)
     generator = init_model(generator)
 

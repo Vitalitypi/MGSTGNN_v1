@@ -58,7 +58,7 @@ class Encoder(nn.Module):
             nn.Embedding(periods[i], periods_embedding_dim[i]) for i in range(self.num_periods)
         ])
         # 每周的embedding
-        self.weekend_embedding = nn.Embedding(2, weekend_embedding_dim)
+        self.weekend_embedding = nn.Embedding(7, weekend_embedding_dim)
         # 节日的embedding
         self.holiday_embedding = nn.Embedding(2, holiday_embedding_dim)
         # 节点的embedding
@@ -154,7 +154,8 @@ class MGSTGNN(nn.Module):
             gat_concat=True,
             mlp_act=nn.GELU,
             mlp_drop=.0,
-            num_gat=0
+            num_gat=0,
+            num_back=0
     ):
         super(MGSTGNN, self).__init__()
         self.num_node = num_nodes
@@ -168,7 +169,7 @@ class MGSTGNN(nn.Module):
         
         self.encoder = DSTRNN(st_adj, st_dis, num_nodes, input_dim, rnn_units, embed_dim, num_layers, in_steps, gat_hidden,
                               mlp_hidden,gat_drop=gat_drop,gat_heads=gat_heads,gat_alpha=gat_alpha,gat_concat=gat_concat,
-                              mlp_act=mlp_act, mlp_drop=mlp_drop,num_gat=num_gat)
+                              mlp_act=mlp_act, mlp_drop=mlp_drop,num_gat=num_gat,num_back=num_back)
 
         self.norm = nn.LayerNorm(self.hidden_dim, eps=1e-12)
         self.out_dropout = nn.Dropout(0.1)
@@ -195,7 +196,7 @@ class MGSTGNN(nn.Module):
 class DSTRNN(nn.Module):
     def __init__(self, st_adj, st_dis, node_num, dim_in, dim_out, embed_dim, num_layers=1, in_steps=12,
                  gat_hidden=256, mlp_hidden=256, gat_drop=0.6, gat_heads=1, gat_alpha=0.2, gat_concat=True,
-                 mlp_act=nn.GELU, mlp_drop=.0, num_gat=0
+                 mlp_act=nn.GELU, mlp_drop=.0, num_gat=0, num_back=0
                  ):
         super(DSTRNN, self).__init__()
         assert num_layers >= 1, 'At least one GRU layer in the Encoder.'
@@ -205,9 +206,18 @@ class DSTRNN(nn.Module):
         self.num_gru = num_layers - 1
         self.dim_out = dim_out
         self.num_gat = num_gat
+        self.num_back = num_back
         self.node_embeddings = nn.Parameter(torch.randn(node_num, embed_dim), requires_grad=True)
         self.time_embeddings = nn.Parameter(torch.randn(in_steps, embed_dim), requires_grad=True)
         self.gru0 = GRUCell(node_num, dim_in, dim_out, embed_dim)
+        self.backs1 = nn.ModuleList([
+            nn.Linear(dim_out,dim_in)
+            for _ in range(self.num_back)
+        ])
+        self.backs2 = nn.ModuleList([
+            nn.Linear(dim_out,dim_out)
+            for _ in range(self.num_back)
+        ])
         self.grus = nn.ModuleList([
             GRUCell(node_num, dim_out, dim_out, embed_dim)
             for _ in range(self.num_gru)
@@ -222,15 +232,15 @@ class DSTRNN(nn.Module):
         seq_length = x.shape[1] # T
         current_inputs = x
         output_hidden = []
-        state = init_state[0]
+        state = init_state[0].to(x.device)
         inner_states = []
         prev = x[:,0]
-        diff = None
         for t in range(seq_length):
             inp = current_inputs[:, t, :, :]
-            if t > 0:
-                inp = inp - diff
-            state, diff = self.gru0(inp, state, self.node_embeddings, self.time_embeddings[t]) # [B, N, hidden_dim]
+            if t < self.num_back:
+                inp = inp - self.backs1[t](state)
+            state = self.gru0(inp, state, self.node_embeddings, self.time_embeddings[t]) # [B, N, hidden_dim]
+
             res = state
             if t < self.num_gat:
                 att = self.gats[t](current_inputs[:, t, :, :], prev)
@@ -240,15 +250,15 @@ class DSTRNN(nn.Module):
             prev = x[:,t]
         base_state = state
         current_inputs = torch.stack(inner_states, dim=1) # [B, T, N, D]
-        states = [init_state[i+1] for i in range(self.num_gru)]
+        states = [init_state[i+1].to(x.device) for i in range(self.num_gru)]
 
         for t in range(seq_length):
             gru = self.grus[t%self.num_gru]
             prev_state = states[t%self.num_gru]
             inp = current_inputs[:, t, :, :]
-            if t > 0:
-                inp = inp - diff
-            states[t%self.num_gru],diff = gru(inp, prev_state, self.node_embeddings, self.time_embeddings[t]) # [B, N, hidden_dim]
+            if t < self.num_back:
+                inp = inp - self.backs2[t](states[t%self.num_gru])
+            states[t%self.num_gru] = gru(inp, prev_state, self.node_embeddings, self.time_embeddings[t]) # [B, N, hidden_dim]
         states.append(base_state)
         current_inputs = torch.stack(states, dim=1) # [B, num_gru+1, N, D]
         return current_inputs, output_hidden
@@ -266,7 +276,6 @@ class GRUCell(nn.Module):
         self.hidden_dim = dim_out
         self.gate = GCN(dim_in+self.hidden_dim, dim_out*2, embed_dim, node_num)
         self.update = GCN(dim_in+self.hidden_dim, dim_out, embed_dim, node_num)
-        self.backcast = nn.Linear(dim_out,dim_in)
     def forward(self, x, state, node_embeddings, time_embeddings):
 
         # x: B, num_nodes, input_dim
@@ -281,7 +290,7 @@ class GRUCell(nn.Module):
         h = r*state + (1-r)*hc
 
 
-        return h, self.backcast(h)
+        return h
 
     def init_hidden_state(self, batch_size):
         return torch.zeros(batch_size, self.node_num, self.hidden_dim)
@@ -457,7 +466,8 @@ class Network(nn.Module):
             gat_concat=True,
             mlp_act='gelu',
             mlp_drop=.0,
-            num_gat=0
+            num_gat=0,
+            num_back=0
     ):
         super(Network, self).__init__()
         if mlp_act=='gelu':
@@ -469,7 +479,8 @@ class Network(nn.Module):
         self.mgstgnn = MGSTGNN(st_adj,st_dis,num_nodes,dim_embed_feature+input_dim,rnn_units,output_dim,
                                rnn_layers,dim_embed,in_steps=in_steps,out_steps=out_steps,predict_time=predict_time,
                                gat_hidden=gat_hidden, mlp_hidden=mlp_hidden,gat_drop=gat_drop,gat_heads=gat_heads,
-                               gat_alpha=gat_alpha,gat_concat=gat_concat, mlp_act=mlp_act, mlp_drop=mlp_drop,num_gat=num_gat)
+                               gat_alpha=gat_alpha,gat_concat=gat_concat, mlp_act=mlp_act, mlp_drop=mlp_drop,
+                               num_gat=num_gat,num_back=num_back)
     def forward(self,x):
         # 进行encoding
         

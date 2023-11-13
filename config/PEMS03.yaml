@@ -41,6 +41,7 @@ model:
   mlp_act: 'gelu'
   mlp_drop: .0
   num_gat: 12
+  num_back: 0
 train:
   loss_func: mae
   random: False
