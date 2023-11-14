@@ -210,18 +210,17 @@ class DSTRNN(nn.Module):
         self.node_embeddings = nn.Parameter(torch.randn(node_num, embed_dim), requires_grad=True)
         self.time_embeddings = nn.Parameter(torch.randn(in_steps, embed_dim), requires_grad=True)
         self.gru0 = GRUCell(node_num, dim_in, dim_out, embed_dim)
-        self.backs1 = nn.ModuleList([
-            nn.Linear(dim_out,dim_in)
-            for _ in range(self.num_back)
-        ])
-        self.backs2 = nn.ModuleList([
-            nn.Linear(dim_out,dim_out)
-            for _ in range(self.num_back)
-        ])
+        if num_back > 0:
+            self.backs1 = nn.Linear(dim_out,dim_in)
         self.grus = nn.ModuleList([
             GRUCell(node_num, dim_out, dim_out, embed_dim)
             for _ in range(self.num_gru)
         ])
+        if num_back>0:
+            self.backs2 = nn.ModuleList([
+                nn.Linear(dim_out,dim_out)
+                for _ in range(self.num_gru)
+            ])
         self.gats = nn.ModuleList([GAT(node_num,st_adj, st_dis, dim_in, dim_out, gat_hidden, mlp_hidden, gat_drop, gat_heads, gat_alpha,
                                        gat_concat, mlp_act, mlp_drop) for _ in range(num_gat)])
         self.norms = nn.ModuleList([nn.LayerNorm(dim_out) for _ in range(num_gat)])
@@ -237,8 +236,8 @@ class DSTRNN(nn.Module):
         prev = x[:,0]
         for t in range(seq_length):
             inp = current_inputs[:, t, :, :]
-            if t < self.num_back:
-                inp = inp - self.backs1[t](state)
+            if self.num_back > 0:
+                inp = inp - self.backs1(state)
             state = self.gru0(inp, state, self.node_embeddings, self.time_embeddings[t]) # [B, N, hidden_dim]
 
             res = state
@@ -256,8 +255,8 @@ class DSTRNN(nn.Module):
             gru = self.grus[t%self.num_gru]
             prev_state = states[t%self.num_gru]
             inp = current_inputs[:, t, :, :]
-            if t < self.num_back:
-                inp = inp - self.backs2[t](states[t%self.num_gru])
+            if self.num_back > 0:
+                inp = inp - self.backs2[t%self.num_gru](states[t%self.num_gru])
             states[t%self.num_gru] = gru(inp, prev_state, self.node_embeddings, self.time_embeddings[t]) # [B, N, hidden_dim]
         states.append(base_state)
         current_inputs = torch.stack(states, dim=1) # [B, num_gru+1, N, D]
