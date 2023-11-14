@@ -20,10 +20,11 @@ def generate_weekend(DATASET):
     res = np.zeros((time_stamps,num_nodes,1))
     current_date = start_date
     for i in range(time_stamps//288):
-        date_info = np.zeros((288,num_nodes))
-        if current_date.weekday()>=5:
-            date_info = np.ones((288,num_nodes))
-            print("This is a weekend! ", current_date)
+        date_info = np.ones((288,num_nodes))*(current_date.weekday())
+        print(date_info[0,0])
+        # if current_date.weekday()>=5:
+        #     date_info = np.ones((288,num_nodes))
+        #     print("This is a weekend! ", current_date)
 
         res[i*288:(i+1)*288,:,0] = date_info
 
