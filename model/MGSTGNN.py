@@ -247,19 +247,20 @@ class DSTRNN(nn.Module):
             inner_states.append(res)
 
             prev = x[:,t]
-        base_state = state
+        out_states = [state for _ in range(self.num_layers)]
         current_inputs = torch.stack(inner_states, dim=1) # [B, T, N, D]
         states = [init_state[i+1].to(x.device) for i in range(self.num_gru)]
 
         for t in range(seq_length):
-            gru = self.grus[t%self.num_gru]
-            prev_state = states[t%self.num_gru]
+            index = t % self.num_gru
+            gru = self.grus[index]
+            prev_state = states[index]
             inp = current_inputs[:, t, :, :]
             if self.num_back > 0:
-                inp = inp - self.backs2[t%self.num_gru](states[t%self.num_gru])
-            states[t%self.num_gru] = gru(inp, prev_state, self.node_embeddings, self.time_embeddings[t]) # [B, N, hidden_dim]
-        states.append(base_state)
-        current_inputs = torch.stack(states, dim=1) # [B, num_gru+1, N, D]
+                inp = inp - self.backs2[index](states[index])
+            states[index] = gru(inp, prev_state, self.node_embeddings, self.time_embeddings[t]) # [B, N, hidden_dim]
+            out_states[index+1] = states[index]
+        current_inputs = torch.stack(out_states, dim=1) # [B, num_gru+1, N, D]
         return current_inputs, output_hidden
 
     def init_hidden(self, batch_size):
