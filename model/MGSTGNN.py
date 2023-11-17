@@ -498,6 +498,6 @@ if __name__ == "__main__":
     st_adj = torch.randn(num_nodes*2,num_nodes*2).to(device)
     st_dis = torch.randn(num_nodes*2,num_nodes*2).to(device)
     network = Network(st_adj,st_dis,307,4,1,12,12,8,32,3,80,periods_dim,6,2,0,8,120,periods_arr,2, 256, 256,
-                      0.6, 1, 0.2, True, 'gelu', .0, 12)
+                      0.6, 1, 0.2, True, 'gelu', .0, 0)
 
     summary(network, [64, 12, 307, 4])
