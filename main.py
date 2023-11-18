@@ -9,7 +9,7 @@ from datetime import datetime
 
 import yaml
 import torch.nn.functional as F
-from model.MGSTGNN import Network
+from model.MGSTGNN_Embed import Network
 from model.discriminator import Discriminator, Discriminator_spatial, Discriminator_temporal
 # from trainer import Trainer
 from trainer import Trainer
@@ -17,7 +17,7 @@ from utils.dataloader import get_dataloader_pems, get_adj_dis_matrix, norm_adj, 
 
 # Correlated training configuration
 from utils.util import get_device, print_model_parameters, masked_mae_loss
-
+torch.autograd.set_detect_anomaly(True)
 Mode = 'Train'
 DATASET = 'PEMS04'
 MODEL = "MGSTGNN"
