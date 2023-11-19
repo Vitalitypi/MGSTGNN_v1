@@ -6,11 +6,10 @@ import torch.nn as nn
 import argparse
 import configparser
 from datetime import datetime
-
 import yaml
 import torch.nn.functional as F
-from model.MGSTGNN_Embed import Network
-from model.discriminator import Discriminator, Discriminator_spatial, Discriminator_temporal
+from model.MGSTGNN_DD1 import Network
+from model.discriminator import Discriminator_spatial,Discriminator_temporal
 # from trainer import Trainer
 from trainer import Trainer
 from utils.dataloader import get_dataloader_pems, get_adj_dis_matrix, norm_adj, get_dataloader_meta_la, construct_adj
@@ -19,7 +18,7 @@ from utils.dataloader import get_dataloader_pems, get_adj_dis_matrix, norm_adj, 
 from utils.util import get_device, print_model_parameters, masked_mae_loss
 torch.autograd.set_detect_anomaly(True)
 Mode = 'Train'
-DATASET = 'PEMS04'
+DATASET = 'PEMS03'
 MODEL = "MGSTGNN"
 DEBUG = 'True'
 ADJ_FILE = './dataset/{}/{}.csv'.format(DATASET, DATASET)
@@ -44,6 +43,10 @@ def get_arguments():
     parser.add_argument('--num_nodes', default=config['data']['num_nodes'], type=int)
     parser.add_argument('--normalizer', default=config['data']['normalizer'], type=str)
     parser.add_argument('--adj_norm', default=config['data']['adj_norm'], type=eval)
+    parser.add_argument('--use_day', default=config['data']['use_day'], type=eval)
+    parser.add_argument('--use_week', default=config['data']['use_week'], type=eval)
+    parser.add_argument('--use_holiday', default=config['data']['use_holiday'], type=eval)
+
     # model
     parser.add_argument('--input_dim', default=config['model']['input_dim'], type=int)
     parser.add_argument('--flow_dim', default=config['model']['flow_dim'], type=int)
@@ -54,35 +57,27 @@ def get_arguments():
     parser.add_argument('--weather_dim', default=config['model']['weather_dim'], type=int)
     parser.add_argument('--dim_discriminator', default=config['model']['dim_discriminator'], type=int)
     parser.add_argument('--alpha_discriminator', default=config['model']['alpha_discriminator'], type=float)
+    parser.add_argument('--use_discriminator', default=config['model']['use_discriminator'], type=eval)
 
-    parser.add_argument('--dim_embed_feature', default=config['model']['dim_embed_feature'], type=int)
-    parser.add_argument('--input_embedding_dim', default=config['model']['input_embedding_dim'], type=int)
-    parser.add_argument('--periods_embedding_dim', default=config['model']['periods_embedding_dim'], type=list)
-    parser.add_argument('--weekend_embedding_dim', default=config['model']['weekend_embedding_dim'], type=int)
-    parser.add_argument('--holiday_embedding_dim', default=config['model']['holiday_embedding_dim'], type=int)
-    parser.add_argument('--spatial_embedding_dim', default=config['model']['spatial_embedding_dim'], type=int)
-    parser.add_argument('--adaptive_embedding_dim', default=config['model']['adaptive_embedding_dim'], type=int)
+    # parser.add_argument('--dim_embed_feature', default=config['model']['dim_embed_feature'], type=int)
+    # parser.add_argument('--input_embedding_dim', default=config['model']['input_embedding_dim'], type=int)
+    # parser.add_argument('--periods_embedding_dim', default=config['model']['periods_embedding_dim'], type=list)
+    # parser.add_argument('--weekend_embedding_dim', default=config['model']['weekend_embedding_dim'], type=int)
+    # parser.add_argument('--holiday_embedding_dim', default=config['model']['holiday_embedding_dim'], type=int)
+    # parser.add_argument('--spatial_embedding_dim', default=config['model']['spatial_embedding_dim'], type=int)
+    # parser.add_argument('--adaptive_embedding_dim', default=config['model']['adaptive_embedding_dim'], type=int)
 
     parser.add_argument('--output_dim', default=config['model']['output_dim'], type=int)
     parser.add_argument('--embed_dim', default=config['model']['embed_dim'], type=int)
     parser.add_argument('--rnn_units', default=config['model']['rnn_units'], type=int)
-    parser.add_argument('--num_layers', default=config['model']['num_layers'], type=int)
+    parser.add_argument('--num_grus', default=config['model']['num_grus'], type=list)
     parser.add_argument('--periods', default=config['model']['periods'][:config['model']['period_dim']], type=list)
     parser.add_argument('--predict_time', default=config['model']['predict_time'], type=int)
-    parser.add_argument('--gat_hidden', default=config['model']['gat_hidden'], type=int)
-    parser.add_argument('--mlp_hidden', default=config['model']['mlp_hidden'], type=int)
-    parser.add_argument('--gat_drop', default=config['model']['gat_drop'], type=float)
-    parser.add_argument('--gat_heads', default=config['model']['gat_heads'], type=int)
-    parser.add_argument('--gat_alpha', default=config['model']['gat_alpha'], type=float)
-    parser.add_argument('--gat_concat', default=config['model']['gat_concat'], type=eval)
-    parser.add_argument('--mlp_act', default=config['model']['mlp_act'], type=str)
-    parser.add_argument('--mlp_drop', default=config['model']['mlp_drop'], type=float)
-    parser.add_argument('--num_gat', default=config['model']['num_gat'], type=int)
-    parser.add_argument('--num_back', default=config['model']['num_back'], type=int)
+    parser.add_argument('--use_back', default=config['model']['use_back'], type=eval)
     # train
     parser.add_argument('--loss_func', default=config['train']['loss_func'], type=str)
-    parser.add_argument('--seed', default=config['train']['seed'], type=int)
     parser.add_argument('--random', default=config['train']['random'], type=eval)
+    parser.add_argument('--seed', default=config['train']['seed'], type=int)
     parser.add_argument('--batch_size', default=config['train']['batch_size'], type=int)
     parser.add_argument('--epochs', default=config['train']['epochs'], type=int)
     parser.add_argument('--lr_init', default=config['train']['lr_init'], type=float)
@@ -102,8 +97,8 @@ def get_arguments():
     parser.add_argument('--log_step', default=config['log']['log_step'], type=int)
     parser.add_argument('--plot', default=config['log']['plot'], type=eval)
     args = parser.parse_args()
-    for arg, value in sorted(vars(args).items()):
-        print(f"{arg}: {value}")
+    # for arg, value in sorted(vars(args).items()):
+    #     print(f"{arg}: {value}")
 
     return args
 
@@ -146,27 +141,10 @@ if __name__ == "__main__":
         st_dis = TensorFloat(st_dis).to(args.device)
         adj_matrix, dis_matrix = TensorFloat(adj_matrix),TensorFloat(dis_matrix)
 
-    # init generator and discriminator model
-    generator = Network(st_adj,st_dis,args.num_nodes,args.input_dim,args.output_dim,args.in_steps,args.out_steps,
-                        args.embed_dim,args.rnn_units,args.num_layers,args.input_embedding_dim,
-                        args.periods_embedding_dim,args.weekend_embedding_dim,args.holiday_embedding_dim,
-                        args.spatial_embedding_dim,args.adaptive_embedding_dim,args.dim_embed_feature,args.periods,
-                        args.predict_time, args.gat_hidden, args.mlp_hidden, args.gat_drop, args.gat_heads,
-                        args.gat_alpha, args.gat_concat, args.mlp_act, args.mlp_drop,args.num_gat,args.num_back)
+    generator = Network(args)
     generator = generator.to(args.device)
     generator = init_model(generator)
 
-    discriminator = Discriminator(args)
-    discriminator = discriminator.to(args.device)
-    discriminator = init_model(discriminator)
-    #
-    discriminator_spatial = Discriminator_spatial(args)
-    discriminator_spatial = discriminator_spatial.to(args.device)
-    discriminator_spatial = init_model(discriminator_spatial)
-
-    discriminator_temporal = Discriminator_temporal(args)
-    discriminator_temporal = discriminator_temporal.to(args.device)
-    discriminator_temporal = init_model(discriminator_temporal)
     if args.dataset in ['METR-LA', 'PEMS-Bay']:
         train_loader, val_loader, test_loader, scaler = get_dataloader_meta_la(args,
                                                                     normalizer=args.normalizer,
@@ -183,62 +161,59 @@ if __name__ == "__main__":
 
     # loss function
     if args.loss_func == 'mask_mae':
-        loss_G = masked_mae_loss(scaler, mask_value=0.0)
+        loss_generator = masked_mae_loss(scaler, mask_value=0.0)
     elif args.loss_func == 'mae':
-        loss_G = torch.nn.L1Loss().to(args.device)
+        loss_generator = torch.nn.L1Loss().to(args.device)
     elif args.loss_func == 'mse':
-        loss_G = torch.nn.MSELoss().to(args.device)
+        loss_generator = torch.nn.MSELoss().to(args.device)
     elif args.loss_func == 'huber':
-        loss_G = torch.nn.HuberLoss().to(args.device)
+        loss_generator = torch.nn.HuberLoss().to(args.device)
     else:
         raise ValueError
-    loss_D = torch.nn.BCELoss()
-
+    loss_discriminator = torch.nn.BCELoss()
     # optimizer
     optimizer_G = torch.optim.Adam(params=generator.parameters(),
                                    lr=args.lr_init,
                                    eps=1.0e-8,
                                    weight_decay=0,
                                    amsgrad=False)
+    lr_scheduler_G, lr_scheduler_spatial,lr_scheduler_temporal = None,None,None
+    discriminator_spatial,discriminator_temporal = None,None
+    optimizer_spatial, optimizer_temporal = None,None
+    if args.use_discriminator:
+        discriminator_spatial = Discriminator_spatial(args)
+        discriminator_spatial = discriminator_spatial.to(args.device)
+        discriminator_spatial = init_model(discriminator_spatial)
 
-    optimizer_D = torch.optim.Adam(params=discriminator.parameters(),
-                                   lr=args.lr_init*0.1,
-                                   eps=1.0e-8,
-                                   weight_decay=0,
-                                   amsgrad=False)
-    #
-    optimizer_spatial = torch.optim.Adam(params=discriminator_spatial.parameters(),
-                                   lr=args.lr_init*0.1,
-                                   eps=1.0e-8,
-                                   weight_decay=0,
-                                   amsgrad=False)
-    optimizer_temporal = torch.optim.Adam(params=discriminator_temporal.parameters(),
-                                   lr=args.lr_init*0.1,
-                                   eps=1.0e-8,
-                                   weight_decay=0,
-                                   amsgrad=False)
-
+        discriminator_temporal = Discriminator_temporal(args)
+        discriminator_temporal = discriminator_temporal.to(args.device)
+        discriminator_temporal = init_model(discriminator_temporal)
+        optimizer_spatial = torch.optim.Adam(params=discriminator_spatial.parameters(),
+                                       lr=args.lr_init*0.1,
+                                       eps=1.0e-8,
+                                       weight_decay=0,
+                                       amsgrad=False)
+        optimizer_temporal = torch.optim.Adam(params=discriminator_temporal.parameters(),
+                                       lr=args.lr_init*0.1,
+                                       eps=1.0e-8,
+                                       weight_decay=0,
+                                       amsgrad=False)
     # learning rate decay scheduler
-    lr_scheduler_G, lr_scheduler_D, lr_scheduler_spatial,lr_scheduler_temporal = None, None, None,None
+
     if args.lr_decay:
         print('Applying learning rate decay.')
         lr_decay_steps = [int(i) for i in list(args.lr_decay_step.split(','))]
         lr_scheduler_G = torch.optim.lr_scheduler.MultiStepLR(optimizer=optimizer_G,
                                                               milestones=lr_decay_steps,
                                                               gamma=args.lr_decay_rate)
-
-        lr_scheduler_D = torch.optim.lr_scheduler.MultiStepLR(optimizer=optimizer_D,
-                                                              milestones=lr_decay_steps,
-                                                              gamma=args.lr_decay_rate)
-
-        lr_scheduler_spatial = torch.optim.lr_scheduler.MultiStepLR(optimizer=optimizer_spatial,
-                                                                 milestones=lr_decay_steps,
-                                                                 gamma=args.lr_decay_rate)
-        lr_scheduler_temporal = torch.optim.lr_scheduler.MultiStepLR(optimizer=optimizer_temporal,
-                                                                 milestones=lr_decay_steps,
-                                                                 gamma=args.lr_decay_rate)
         # lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer=optimizer, T_max=64)
-
+        if args.use_discriminator:
+            lr_scheduler_spatial = torch.optim.lr_scheduler.MultiStepLR(optimizer=optimizer_spatial,
+                                                                     milestones=lr_decay_steps,
+                                                                     gamma=args.lr_decay_rate)
+            lr_scheduler_temporal = torch.optim.lr_scheduler.MultiStepLR(optimizer=optimizer_temporal,
+                                                                     milestones=lr_decay_steps,
+                                                                     gamma=args.lr_decay_rate)
     # config log path
     current_time = datetime.now().strftime('%Y%m%d%H%M%S')
     current_dir = os.path.dirname(os.path.realpath(__file__))
@@ -247,17 +222,18 @@ if __name__ == "__main__":
 
     # model training or testing
     trainer = Trainer(args,
-                      generator, discriminator, discriminator_spatial,discriminator_temporal,
-                      train_loader, val_loader, test_loader, scaler,
-                      loss_G, loss_D,
-                      optimizer_G, optimizer_D, optimizer_spatial,optimizer_temporal,
-                      lr_scheduler_G, lr_scheduler_D, lr_scheduler_spatial,lr_scheduler_temporal)
+                      generator,discriminator_spatial,discriminator_temporal,
+                      train_loader,val_loader,test_loader,scaler,
+                      loss_generator,loss_discriminator,
+                      optimizer_G,optimizer_spatial,optimizer_temporal,
+                      lr_scheduler_G,lr_scheduler_spatial,lr_scheduler_temporal)
 
     if args.mode.lower() == 'train':
         trainer.train()
     elif args.mode.lower() == 'test':
         # generator.load_state_dict(torch.load('./log/{}/20221128054144/best_model.pth'.format(args.dataset)))
         print("Load saved model")
+        # def test(model, args, data_loader, scaler, logger, path=None):
         trainer.test(generator, trainer.args, test_loader, scaler, trainer.logger, path=f'./exps/log/{args.dataset}/20221130052054/')
     else:
         raise ValueError

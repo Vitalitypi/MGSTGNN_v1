@@ -1,7 +1,8 @@
 import argparse
 import configparser
-
+import time
 import torch
+import yaml
 from torch import nn
 from torchinfo import summary
 import torch.nn.functional as F
@@ -142,12 +143,12 @@ class DDGCRN(nn.Module):
             input_dim,              #输入维度
             rnn_units,              #GRU循环单元数
             output_dim,             #输出维度
-            num_layers,             #GRU的层数
+            num_grus,               #GRU的层数
             embed_dim,              #GNN嵌入维度
-            in_steps=12,               #输入的时间长度
-            out_steps=12,              #预测的时间长度
+            in_steps=12,            #输入的时间长度
+            out_steps=12,           #预测的时间长度
             predict_time=1,
-            num_back=0,
+            use_back=False,
             use_D=True,
             use_W=True,
             use_H=False,
@@ -159,9 +160,8 @@ class DDGCRN(nn.Module):
         self.output_dim = output_dim
         self.in_steps = in_steps
         self.out_steps = out_steps
-        self.num_layers = num_layers
         self.embed_dim = embed_dim
-        self.num_grus=[1,1]
+        self.num_grus=num_grus
         self.node_embeddings = nn.Parameter(torch.randn(self.num_node, embed_dim), requires_grad=True)
         if use_D:
             self.T_i_D_emb = nn.Parameter(torch.empty(288, embed_dim))
@@ -170,8 +170,8 @@ class DDGCRN(nn.Module):
         if use_H:
             self.Holiday_emb = nn.Parameter(torch.empty(2, embed_dim))
         self.use_D,self.use_W,self.use_H = use_D,use_W,use_H
-        self.encoder = DSTRNN(num_nodes, 1, rnn_units, embed_dim,num_layers, 12, num_back=num_back,
-                              conv_steps=predict_time, num_grus=self.num_grus)
+        self.encoder = DSTRNN(num_nodes, 1, rnn_units, embed_dim,num_grus, 12, use_back=use_back,
+                              conv_steps=predict_time)
 
         #self.norm = nn.LayerNorm(args.rnn_units*len(self.num_grus), eps=1e-12)
         #self.out_dropout = nn.Dropout(0.1)
@@ -212,22 +212,20 @@ class DDGCRN(nn.Module):
         return output
 
 class DSTRNN(nn.Module):
-    def __init__(self, node_num, dim_in, dim_out, embed_dim, num_layers=1, in_steps=12,
-                 num_back=0, conv_steps=2, num_grus=None, conv_bias=True):
+    def __init__(self, node_num, dim_in, dim_out, embed_dim, num_grus, in_steps=12,
+                 use_back=False, conv_steps=2, conv_bias=True):
         super(DSTRNN, self).__init__()
-        assert num_layers >= 1, 'At least one GRU layer in the Encoder.'
+        assert len(num_grus) >= 1, 'At least one GRU layer in the Encoder.'
         self.node_num = node_num
         self.input_dim = dim_in
-        self.num_layers = num_layers
-        self.num_gru = num_layers - 1
         self.dim_out = dim_out
-        self.num_back = num_back
+        self.use_back = use_back
         self.num_grus = num_grus
         self.grus = nn.ModuleList([
             GRUCell(node_num, dim_in, dim_out, embed_dim)
             for _ in range(sum(num_grus))
         ])
-        if num_back>0:
+        if use_back>0:
             self.backs = nn.ModuleList([
                 nn.Linear(dim_out,dim_out)
                 for _ in range(sum(num_grus))
@@ -257,7 +255,7 @@ class DSTRNN(nn.Module):
         self.conv_steps = conv_steps
     def forward(self, x, init_state, node_embeddings):
         # shape of x: (B, T, N, D)
-        # shape of init_state: (num_layers, B, N, hidden_dim)
+        # shape of init_state: (len(num_grus), B, N, hidden_dim)
         assert x.shape[2] == self.node_num and x.shape[3] == self.input_dim
 
         outputs = []
@@ -276,7 +274,7 @@ class DSTRNN(nn.Module):
                 index2 = t % self.num_grus[i]
                 prev_state = init_hidden_states[index1+index2]
                 inp = current_inputs[:, t, :, :]
-                if self.num_back > 0:
+                if self.use_back:
                     inp = inp - self.backs[index1+index2](prev_state)
                 init_hidden_states[index1+index2] = self.grus[index1+index2](inp, prev_state, [node_embeddings[0][:, t, :, :], node_embeddings[1]]) # [B, N, hidden_dim]
                 inner_states.append(init_hidden_states[index1+index2])
@@ -343,6 +341,7 @@ class GCN(nn.Module):
                              #('sigmoid1', nn.ReLU()),
                              ('sigmoid2', nn.Sigmoid()),
                              ('fc3', nn.Linear(self.dim_hidden2, self.embed_dim))]))
+
     def forward(self, x, node_embeddings):
 
 
@@ -384,31 +383,16 @@ class GCN(nn.Module):
         return L
 
 class Network(nn.Module):
-    def __init__(
-            self,
-            st_adj,
-            st_dis,
-            num_nodes,
-            input_dim,
-            output_dim,
-            in_steps,
-            out_steps,
-            dim_embed,
-            rnn_units,
-            rnn_layers,
-
-            predict_time,
-            num_back=0
-    ):
+    def __init__(self, args):
         super(Network, self).__init__()
         # encoder
         # self.encoder = Encoder(num_nodes,input_embedding_dim,periods_embedding_dim,weekend_embedding_dim,
         #                        holiday_embedding_dim,spatial_embedding_dim,adaptive_embedding_dim,
         #                        dim_embed_feature,input_dim,periods)
-        self.mgstgnn = DDGCRN(num_nodes,input_dim,rnn_units,output_dim,
-                               rnn_layers,dim_embed,in_steps=in_steps,out_steps=out_steps,predict_time=predict_time,
-                               num_back=num_back)
+        self.mgstgnn = DDGCRN(args.num_nodes,args.input_dim,args.rnn_units,args.output_dim,args.num_grus,args.embed_dim,
+                              in_steps=args.in_steps,out_steps=args.out_steps,predict_time=args.predict_time,use_back=args.use_back)
     def forward(self,x):
+
         # 进行encoding
         # enc = self.encoder(x)
         # dat = torch.cat((x,enc),dim=-1)
@@ -416,12 +400,83 @@ class Network(nn.Module):
         return out
 
 if __name__ == "__main__":
-    periods_dim = [24]
-    periods_arr = [288]
-    num_nodes = 307
-    device = torch.device("cuda", 0)
-    st_adj = torch.randn(num_nodes*2,num_nodes*2).to(device)
-    st_dis = torch.randn(num_nodes*2,num_nodes*2).to(device)
-    network = Network(st_adj,st_dis,307,1,1,12,12,10,64,3,predict_time=1)
+    Mode = 'Train'
+    DATASET = 'PEMS03'
+    MODEL = "MGSTGNN"
+    DEBUG = 'True'
+    # get configuration
+    config_file = '../config/{}.yaml'.format(DATASET)
+    with open(config_file, "r") as f:
+        config = yaml.safe_load(f)
+    # parser
+    parser = argparse.ArgumentParser(description='arguments')
+    parser.add_argument('--dataset', default=DATASET, type=str)
+    parser.add_argument('--mode', default=Mode, type=str)
+    parser.add_argument('--debug', default=DEBUG, type=eval)
+    parser.add_argument('--model', default=MODEL, type=str)
+    parser.add_argument('--gpu_id', default=0, type=int)
+    # data
+    parser.add_argument('--val_ratio', default=config['data']['val_ratio'], type=float)
+    parser.add_argument('--test_ratio', default=config['data']['test_ratio'], type=float)
+    parser.add_argument('--in_steps', default=config['data']['in_steps'], type=int)
+    parser.add_argument('--out_steps', default=config['data']['out_steps'], type=int)
+    parser.add_argument('--num_nodes', default=config['data']['num_nodes'], type=int)
+    parser.add_argument('--normalizer', default=config['data']['normalizer'], type=str)
+    parser.add_argument('--adj_norm', default=config['data']['adj_norm'], type=eval)
+    parser.add_argument('--use_day', default=config['data']['use_day'], type=eval)
+    parser.add_argument('--use_week', default=config['data']['use_week'], type=eval)
+    parser.add_argument('--use_holiday', default=config['data']['use_holiday'], type=eval)
+
+    # model
+    parser.add_argument('--input_dim', default=config['model']['input_dim'], type=int)
+    parser.add_argument('--flow_dim', default=config['model']['flow_dim'], type=int)
+    parser.add_argument('--period_dim', default=config['model']['period_dim'], type=int)
+    parser.add_argument('--weekend_dim', default=config['model']['weekend_dim'], type=int)
+    parser.add_argument('--holiday_dim', default=config['model']['holiday_dim'], type=int)
+    parser.add_argument('--hop_dim', default=config['model']['hop_dim'], type=int)
+    parser.add_argument('--weather_dim', default=config['model']['weather_dim'], type=int)
+    parser.add_argument('--dim_discriminator', default=config['model']['dim_discriminator'], type=int)
+    parser.add_argument('--alpha_discriminator', default=config['model']['alpha_discriminator'], type=float)
+    parser.add_argument('--use_discriminator', default=config['model']['use_discriminator'], type=eval)
+
+    # parser.add_argument('--dim_embed_feature', default=config['model']['dim_embed_feature'], type=int)
+    # parser.add_argument('--input_embedding_dim', default=config['model']['input_embedding_dim'], type=int)
+    # parser.add_argument('--periods_embedding_dim', default=config['model']['periods_embedding_dim'], type=list)
+    # parser.add_argument('--weekend_embedding_dim', default=config['model']['weekend_embedding_dim'], type=int)
+    # parser.add_argument('--holiday_embedding_dim', default=config['model']['holiday_embedding_dim'], type=int)
+    # parser.add_argument('--spatial_embedding_dim', default=config['model']['spatial_embedding_dim'], type=int)
+    # parser.add_argument('--adaptive_embedding_dim', default=config['model']['adaptive_embedding_dim'], type=int)
+
+    parser.add_argument('--output_dim', default=config['model']['output_dim'], type=int)
+    parser.add_argument('--embed_dim', default=config['model']['embed_dim'], type=int)
+    parser.add_argument('--rnn_units', default=config['model']['rnn_units'], type=int)
+    parser.add_argument('--num_grus', default=config['model']['num_grus'], type=list)
+    parser.add_argument('--periods', default=config['model']['periods'][:config['model']['period_dim']], type=list)
+    parser.add_argument('--predict_time', default=config['model']['predict_time'], type=int)
+    parser.add_argument('--use_back', default=config['model']['use_back'], type=eval)
+    # train
+    parser.add_argument('--loss_func', default=config['train']['loss_func'], type=str)
+    parser.add_argument('--random', default=config['train']['random'], type=eval)
+    parser.add_argument('--seed', default=config['train']['seed'], type=int)
+    parser.add_argument('--batch_size', default=config['train']['batch_size'], type=int)
+    parser.add_argument('--epochs', default=config['train']['epochs'], type=int)
+    parser.add_argument('--lr_init', default=config['train']['lr_init'], type=float)
+    parser.add_argument('--lr_decay', default=config['train']['lr_decay'], type=eval)
+    parser.add_argument('--lr_decay_rate', default=config['train']['lr_decay_rate'], type=float)
+    parser.add_argument('--lr_decay_step', default=config['train']['lr_decay_step'], type=str)
+    parser.add_argument('--early_stop', default=config['train']['early_stop'], type=eval)
+    parser.add_argument('--early_stop_patience', default=config['train']['early_stop_patience'], type=int)
+    parser.add_argument('--grad_norm', default=config['train']['grad_norm'], type=eval)
+    parser.add_argument('--max_grad_norm', default=config['train']['max_grad_norm'], type=int)
+    parser.add_argument('--real_value', default=config['train']['real_value'], type=eval, help = 'use real value for loss calculation')
+    # test
+    parser.add_argument('--mae_thresh', default=config['test']['mae_thresh'], type=eval)
+    parser.add_argument('--mape_thresh', default=config['test']['mape_thresh'], type=float)
+    # log
+    parser.add_argument('--log_dir', default='./exps/logs/', type=str)
+    parser.add_argument('--log_step', default=config['log']['log_step'], type=int)
+    parser.add_argument('--plot', default=config['log']['plot'], type=eval)
+    args = parser.parse_args()
+    network = Network(args)
     # network = DDGCRN(307,1,64,1,2,10,12,12,1)
-    summary(network, [64, 12, 307, 3])
+    summary(network, [args.batch_size, args.in_steps, args.num_nodes, args.input_dim])
