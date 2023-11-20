@@ -1,30 +1,6 @@
 import torch
 import torch.nn as nn
 
-
-class Discriminator(nn.Module):
-    def __init__(self, args):
-        super(Discriminator, self).__init__()
-        self.window = args.in_steps
-        self.horizon = args.out_steps
-        self.num_nodes = args.num_nodes
-        self.model = nn.Sequential(
-            nn.Linear(self.num_nodes, args.dim_discriminator),
-            nn.LeakyReLU(args.alpha_discriminator, inplace=True),
-            nn.Linear(args.dim_discriminator, args.dim_discriminator//2),
-            nn.LeakyReLU(args.alpha_discriminator, inplace=True),
-            nn.Linear(args.dim_discriminator//2, 1),
-            nn.Sigmoid(),
-        )
-
-    def forward(self, x):  
-        x = x.squeeze() # [B, (W+H), N]
-        x_flat = x.view(-1, x.shape[2]) # [B*(W+H), N]
-
-        validity = self.model(x_flat)
-
-        return validity
-
 class Discriminator_spatial(nn.Module):
     def __init__(self, args):
         super(Discriminator_spatial, self).__init__()

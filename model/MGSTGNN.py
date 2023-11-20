@@ -136,7 +136,7 @@ class Encoder(nn.Module):
 
         return x
 
-class DDGCRN(nn.Module):
+class MGSTGNN(nn.Module):
     def __init__(
             self,
             num_nodes,              #节点数
@@ -153,7 +153,7 @@ class DDGCRN(nn.Module):
             use_W=True,
             use_H=False,
     ):
-        super(DDGCRN, self).__init__()
+        super(MGSTGNN, self).__init__()
         self.num_node = num_nodes
         self.input_dim = input_dim
         self.hidden_dim = rnn_units
@@ -389,7 +389,7 @@ class Network(nn.Module):
         # self.encoder = Encoder(num_nodes,input_embedding_dim,periods_embedding_dim,weekend_embedding_dim,
         #                        holiday_embedding_dim,spatial_embedding_dim,adaptive_embedding_dim,
         #                        dim_embed_feature,input_dim,periods)
-        self.mgstgnn = DDGCRN(args.num_nodes,args.input_dim,args.rnn_units,args.output_dim,args.num_grus,args.embed_dim,
+        self.mgstgnn = MGSTGNN(args.num_nodes,args.input_dim,args.rnn_units,args.output_dim,args.num_grus,args.embed_dim,
                               in_steps=args.in_steps,out_steps=args.out_steps,predict_time=args.predict_time,use_back=args.use_back)
     def forward(self,x):
 

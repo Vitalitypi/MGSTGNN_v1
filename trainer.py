@@ -50,7 +50,9 @@ class Trainer(object):
         if os.path.isdir(args.log_dir) == False and not args.debug:
             os.makedirs(args.log_dir, exist_ok=True)
         self.logger = get_logger(args.log_dir, name=args.model, debug=args.debug)
+        self.logger.info(args)
         self.logger.info('Experiment log path in: {}'.format(args.log_dir))
+
         #if not args.debug:
         #self.logger.info("Argument: %r", args)
         # for arg, value in sorted(vars(args).items()):
