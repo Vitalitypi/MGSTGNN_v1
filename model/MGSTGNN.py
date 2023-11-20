@@ -1,8 +1,12 @@
+import argparse
+import configparser
+import time
 import torch
+import yaml
 from torch import nn
 from torchinfo import summary
 import torch.nn.functional as F
-
+from collections import OrderedDict
 class Encoder(nn.Module):
     def __init__(
             self,
@@ -132,142 +136,168 @@ class Encoder(nn.Module):
 
         return x
 
-class MGSTGNN(nn.Module):
+class DDGCRN(nn.Module):
     def __init__(
             self,
-            st_adj,                    # 邻接矩阵
-            st_dis,                    # 距离矩阵
             num_nodes,              #节点数
             input_dim,              #输入维度
             rnn_units,              #GRU循环单元数
             output_dim,             #输出维度
-            num_layers,             #GRU的层数
+            num_grus,               #GRU的层数
             embed_dim,              #GNN嵌入维度
-            in_steps=12,               #输入的时间长度
-            out_steps=12,              #预测的时间长度
-            predict_time=2,
-            gat_hidden=256,
-            mlp_hidden=256,
-            gat_drop=0.6,
-            gat_heads=1,
-            gat_alpha=0.2,
-            gat_concat=True,
-            mlp_act=nn.GELU,
-            mlp_drop=.0,
-            num_gat=0,
-            num_back=0
+            in_steps=12,            #输入的时间长度
+            out_steps=12,           #预测的时间长度
+            predict_time=1,
+            use_back=False,
+            use_D=True,
+            use_W=True,
+            use_H=False,
     ):
-        super(MGSTGNN, self).__init__()
+        super(DDGCRN, self).__init__()
         self.num_node = num_nodes
         self.input_dim = input_dim
         self.hidden_dim = rnn_units
         self.output_dim = output_dim
         self.in_steps = in_steps
         self.out_steps = out_steps
-        self.num_layers = num_layers
         self.embed_dim = embed_dim
-        
-        self.encoder = DSTRNN(st_adj, st_dis, num_nodes, input_dim, rnn_units, embed_dim, num_layers, in_steps, gat_hidden,
-                              mlp_hidden,gat_drop=gat_drop,gat_heads=gat_heads,gat_alpha=gat_alpha,gat_concat=gat_concat,
-                              mlp_act=mlp_act, mlp_drop=mlp_drop,num_gat=num_gat,num_back=num_back)
+        self.num_grus=num_grus
+        self.node_embeddings = nn.Parameter(torch.randn(self.num_node, embed_dim), requires_grad=True)
+        if use_D:
+            self.T_i_D_emb = nn.Parameter(torch.empty(288, embed_dim))
+        if use_W:
+            self.D_i_W_emb = nn.Parameter(torch.empty(7, embed_dim))
+        if use_H:
+            self.Holiday_emb = nn.Parameter(torch.empty(2, embed_dim))
+        self.use_D,self.use_W,self.use_H = use_D,use_W,use_H
+        self.encoder = DSTRNN(num_nodes, 1, rnn_units, embed_dim,num_grus, 12, use_back=use_back,
+                              conv_steps=predict_time)
 
-        self.norm = nn.LayerNorm(self.hidden_dim, eps=1e-12)
-        self.out_dropout = nn.Dropout(0.1)
+        #self.norm = nn.LayerNorm(args.rnn_units*len(self.num_grus), eps=1e-12)
+        #self.out_dropout = nn.Dropout(0.1)
 
-        self.end_conv = nn.Conv2d(predict_time, out_steps * self.output_dim, kernel_size=(1, self.hidden_dim), bias=True)
+        #self.end_conv = nn.Conv2d(predict_time, 12 * self.output_dim, kernel_size=(1, args.rnn_units*len(self.num_grus)), bias=True)
 
         self.predict_time = predict_time
-    def forward(self, source):
-        b,t,n,d = source.size()
+    def forward(self, source, A=None):
+        node_embedding = self.node_embeddings
+        if self.use_D:
+            t_i_d_data   = source[..., 1]
+            T_i_D_emb = self.T_i_D_emb[(t_i_d_data * 288).type(torch.LongTensor)]
+            node_embedding = torch.mul(node_embedding, T_i_D_emb)
+        if self.use_W:
+            d_i_w_data   = source[..., 2]
+            D_i_W_emb = self.D_i_W_emb[(d_i_w_data).type(torch.LongTensor)]
+            node_embedding = torch.mul(node_embedding, D_i_W_emb)
+        if self.use_H:
+            holiday_data = source[..., 3]
+            Holiday_emb = self.Holiday_emb[(holiday_data).type(torch.LongTensor)]
+            node_embedding = torch.mul(node_embedding, Holiday_emb)
+        node_embeddings=[node_embedding,self.node_embeddings]
+        # b,t,n,d = source.size()
         # source: B, T, N, D
         init_state = self.encoder.init_hidden(source.shape[0])#,self.num_node,self.hidden_dim
-        output, _ = self.encoder(source, init_state) # B, T, N, hidden
-        
-        output = self.out_dropout(self.norm(output[:, -self.predict_time:, :, :])) # B, r, N, hidden
+        source = source[..., 0].unsqueeze(-1)
+        # source = torch.stack([source[..., 0],source[..., 1]], dim=-1)
+        _, output = self.encoder(source, init_state, node_embeddings) # B, T, N, hidden
+
+        #output = self.out_dropout(self.norm(output[:, -self.predict_time:, :, :])) # B, r, N, hidden
 
         # CNN based predictor
-        output = self.end_conv((output)) # B, T*C, N, d'
-        output = output.squeeze(-1).reshape(-1, self.out_steps, self.output_dim, self.num_node)
-        output = output.permute(0, 1, 3, 2) # B, T, N, C
+        #output = self.end_conv((output)) # B, T*C, N, d'
+        #output = output.squeeze(-1).reshape(-1, self.out_steps, self.output_dim, self.num_node)
+        #output = output.permute(0, 1, 3, 2) # B, T, N, C
 
 
         return output
 
 class DSTRNN(nn.Module):
-    def __init__(self, st_adj, st_dis, node_num, dim_in, dim_out, embed_dim, num_layers=1, in_steps=12,
-                 gat_hidden=256, mlp_hidden=256, gat_drop=0.6, gat_heads=1, gat_alpha=0.2, gat_concat=True,
-                 mlp_act=nn.GELU, mlp_drop=.0, num_gat=0, num_back=0
-                 ):
+    def __init__(self, node_num, dim_in, dim_out, embed_dim, num_grus, in_steps=12,
+                 use_back=False, conv_steps=2, conv_bias=True):
         super(DSTRNN, self).__init__()
-        assert num_layers >= 1, 'At least one GRU layer in the Encoder.'
+        assert len(num_grus) >= 1, 'At least one GRU layer in the Encoder.'
         self.node_num = node_num
         self.input_dim = dim_in
-        self.num_layers = num_layers
-        self.num_gru = num_layers - 1
         self.dim_out = dim_out
-        self.num_gat = num_gat
-        self.num_back = num_back
-        self.node_embeddings = nn.Parameter(torch.randn(node_num, embed_dim), requires_grad=True)
-        self.time_embeddings = nn.Parameter(torch.randn(in_steps, embed_dim), requires_grad=True)
-        self.gru0 = GRUCell(node_num, dim_in, dim_out, embed_dim)
-        if num_back > 0:
-            self.backs1 = nn.Linear(dim_out,dim_in)
+        self.use_back = use_back
+        self.num_grus = num_grus
         self.grus = nn.ModuleList([
-            GRUCell(node_num, dim_out, dim_out, embed_dim)
-            for _ in range(self.num_gru)
+            GRUCell(node_num, dim_in, dim_out, embed_dim)
+            for _ in range(sum(num_grus))
         ])
-        if num_back>0:
-            self.backs2 = nn.ModuleList([
+        if use_back>0:
+            self.backs = nn.ModuleList([
                 nn.Linear(dim_out,dim_out)
-                for _ in range(self.num_gru)
+                for _ in range(sum(num_grus))
             ])
-        self.gats = nn.ModuleList([GAT(node_num,st_adj, st_dis, dim_in, dim_out, gat_hidden, mlp_hidden, gat_drop, gat_heads, gat_alpha,
-                                       gat_concat, mlp_act, mlp_drop) for _ in range(num_gat)])
-        self.norms = nn.ModuleList([nn.LayerNorm(dim_out) for _ in range(num_gat)])
-    def forward(self, x, init_state):
+        # predict output
+        self.predictors = nn.ModuleList([
+             # nn.Linear(dim_out,dim_cat)
+             nn.Conv2d(conv_steps, 1 * in_steps, kernel_size=(1,dim_out), bias=conv_bias)
+             for _ in num_grus
+        ])
+        # skip
+        self.skips = nn.ModuleList([
+            # nn.Linear(dim_out,dim_in)
+            nn.Conv2d(conv_steps, dim_in * in_steps, kernel_size=(1,dim_out), bias=conv_bias)
+            for _ in range(len(num_grus)-1)
+        ])
+        # norms
+        #self.norms = nn.ModuleList([
+          #  nn.LayerNorm(dim_in)
+          #  for _ in range(len(num_grus)-1)
+        #])
+        # dropout
+        self.dropouts = nn.ModuleList([
+            nn.Dropout(p=0.1)
+            for _ in range(len(num_grus))
+        ])
+        self.conv_steps = conv_steps
+    def forward(self, x, init_state, node_embeddings):
         # shape of x: (B, T, N, D)
-        # shape of init_state: (num_layers, B, N, hidden_dim)
+        # shape of init_state: (len(num_grus), B, N, hidden_dim)
         assert x.shape[2] == self.node_num and x.shape[3] == self.input_dim
+
+        outputs = []
+        skip = x
         seq_length = x.shape[1] # T
         current_inputs = x
-        output_hidden = []
-        state = init_state[0].to(x.device)
-        inner_states = []
-        prev = x[:,0]
-        for t in range(seq_length):
-            inp = current_inputs[:, t, :, :]
-            if self.num_back > 0:
-                inp = inp - self.backs1(state)
-            state = self.gru0(inp, state, self.node_embeddings, self.time_embeddings[t]) # [B, N, hidden_dim]
 
-            res = state
-            if t < self.num_gat:
-                att = self.gats[t](current_inputs[:, t, :, :], prev)
-                res = self.norms[t](res+att)
-            inner_states.append(res)
+        index1 = 0
+        init_hidden_states = [state.to(x.device) for state in init_state]
+        batch_size,time_stamps,node_num,dimensions = skip.size()
 
-            prev = x[:,t]
-        out_states = [state for _ in range(self.num_layers)]
-        current_inputs = torch.stack(inner_states, dim=1) # [B, T, N, D]
-        states = [init_state[i+1].to(x.device) for i in range(self.num_gru)]
 
-        for t in range(seq_length):
-            index = t % self.num_gru
-            gru = self.grus[index]
-            prev_state = states[index]
-            inp = current_inputs[:, t, :, :]
-            if self.num_back > 0:
-                inp = inp - self.backs2[index](states[index])
-            states[index] = gru(inp, prev_state, self.node_embeddings, self.time_embeddings[t]) # [B, N, hidden_dim]
-            out_states[index+1] = states[index]
-        current_inputs = torch.stack(out_states, dim=1) # [B, num_gru+1, N, D]
-        return current_inputs, output_hidden
+        for i in range(len(self.num_grus)):
+            inner_states = []
+            for t in range(seq_length):
+                index2 = t % self.num_grus[i]
+                prev_state = init_hidden_states[index1+index2]
+                inp = current_inputs[:, t, :, :]
+                if self.use_back:
+                    inp = inp - self.backs[index1+index2](prev_state)
+                init_hidden_states[index1+index2] = self.grus[index1+index2](inp, prev_state, [node_embeddings[0][:, t, :, :], node_embeddings[1]]) # [B, N, hidden_dim]
+                inner_states.append(init_hidden_states[index1+index2])
+            index1 += self.num_grus[i]
+            current_inputs = torch.stack(inner_states, dim=1) # [B, T, N, D]
+            current_inputs = self.dropouts[i](current_inputs[:, -self.conv_steps:, :, :])
+            outputs.append(self.predictors[i](current_inputs).reshape(batch_size,time_stamps,node_num,-1))
+            if i < len(self.num_grus)-1:
+                current_inputs = skip - self.skips[i](current_inputs).reshape(batch_size,time_stamps,node_num,-1)
+
+        predict = outputs[0]
+        for i in range(1,len(outputs)):
+            predict = predict + outputs[i]
+        return None, predict
 
     def init_hidden(self, batch_size):
-        init_states = [self.gru0.init_hidden_state(batch_size)]
-        for i in range(self.num_gru):
-            init_states.append(self.grus[i].init_hidden_state(batch_size))
-        return torch.stack(init_states, dim=0) # (num_layers, B, N, hidden_dim)
+        init_states = []
+        index = 0
+        for i in range(len(self.num_grus)):
+            for j in range(self.num_grus[i]):
+                init_states.append(self.grus[index+j].init_hidden_state(batch_size))
+            index += self.num_grus[i]
+        return init_states # [sum(num_grus), B, N, hidden_dim]
 
 class GRUCell(nn.Module):
     def __init__(self, node_num, dim_in, dim_out, embed_dim):
@@ -276,17 +306,16 @@ class GRUCell(nn.Module):
         self.hidden_dim = dim_out
         self.gate = GCN(dim_in+self.hidden_dim, dim_out*2, embed_dim, node_num)
         self.update = GCN(dim_in+self.hidden_dim, dim_out, embed_dim, node_num)
-    def forward(self, x, state, node_embeddings, time_embeddings):
+    def forward(self, x, state, node_embeddings):
 
         # x: B, num_nodes, input_dim
         # state: B, num_nodes, hidden_dim
-        state = state.to(x.device)
         input_and_state = torch.cat((x, state), dim=-1) # [B, N, 1+D]
-        z_r = torch.sigmoid(self.gate(input_and_state, node_embeddings,time_embeddings))
+        z_r = torch.sigmoid(self.gate(input_and_state, node_embeddings))
         z,r = torch.split(z_r,self.hidden_dim,dim=-1)
         # r = torch.sigmoid(self.gate_r(input_and_state, node_embeddings,time_embeddings))
         candidate = torch.cat((x, z*state), dim=-1)
-        hc = torch.tanh(self.update(candidate, node_embeddings, time_embeddings))
+        hc = torch.tanh(self.update(candidate, node_embeddings))
         h = r*state + (1-r)*hc
 
 
@@ -301,203 +330,153 @@ class GCN(nn.Module):
         self.node_num = node_num
         self.weights_pool = nn.Parameter(torch.FloatTensor(embed_dim, 2, dim_in, dim_out)) # [D, C, F]
         self.bias_pool = nn.Parameter(torch.FloatTensor(embed_dim, dim_out)) # [D, F]
-        self.norm = nn.LayerNorm(embed_dim, eps=1e-12)
-        self.drop = nn.Dropout(0.1)
-    def forward(self, x, node_embeddings, time_embeddings):
-        # x shaped[B, N, C], node_embeddings shaped [N, D], embedding shaped [N, N]
-        # output shape [B, N, C]
-        I = torch.eye(self.node_num).to(x.device)
-        node_embeddings = self.drop(
-            self.norm(node_embeddings + time_embeddings.unsqueeze(0)))  # torch.mul(node_embeddings, node_time)
-        embedding = F.softmax(torch.mm(node_embeddings, node_embeddings.transpose(0, 1)), dim=1)
-        support_set = [I, embedding]
-        supports = torch.stack(support_set, dim=0)  # [3, N, N]
-        weights = torch.einsum('nd,dkio->nkio', node_embeddings, self.weights_pool) # N, dim_in, dim_out
-        bias = torch.matmul(node_embeddings, self.bias_pool) # N, dim_out
+        self.dim_hidden1 = 16
+        self.dim_hidden2 = 2
+        self.embed_dim = embed_dim
+        self.fc=nn.Sequential( #疑问，这里为什么要用三层linear来做，为什么激活函数是sigmoid
+                OrderedDict([('fc1', nn.Linear(dim_in, self.dim_hidden1)),
+                             #('sigmoid1', nn.ReLU()),
+                             ('sigmoid1', nn.Sigmoid()),
+                             ('fc2', nn.Linear(self.dim_hidden1, self.dim_hidden2)),
+                             #('sigmoid1', nn.ReLU()),
+                             ('sigmoid2', nn.Sigmoid()),
+                             ('fc3', nn.Linear(self.dim_hidden2, self.embed_dim))]))
 
-        x_g = torch.einsum("knm,bmc->bknc", supports, x) # B, N, dim_in
+    def forward(self, x, node_embeddings):
+
+
+        # x shaped[B, N, C], node_embeddings shaped [[b, N, D], [N, D]]
+        # output shape [B, N, C]
+        supports1 = torch.eye(self.node_num).to(x.device)
+        x_ = self.fc(x)
+        nodevec = torch.tanh(torch.mul(node_embeddings[0], x_))  #[B,N,dim_in]
+        supports2 = GCN.get_laplacian(F.relu(torch.matmul(nodevec, nodevec.transpose(2, 1))), supports1)
+        x_g1 = torch.einsum("nm,bmc->bnc", supports1, x)
+        x_g2 = torch.einsum("bnm,bmc->bnc", supports2, x)
+        x_g = torch.stack([x_g1,x_g2],dim=1)
+        weights = torch.einsum('nd,dkio->nkio', node_embeddings[1], self.weights_pool)    #[B,N,embed_dim]*[embed_dim,chen_k,dim_in,dim_out] =[B,N,cheb_k,dim_in,dim_out]
+                                                                                  #[N, cheb_k, dim_in, dim_out]=[nodes,cheb_k,hidden_size,output_dim]
+        bias = torch.matmul(node_embeddings[1], self.bias_pool) #N, dim_out                 #[che_k,nodes,nodes]* [batch,nodes,dim_in]=[B, cheb_k, N, dim_in]
         x_g = x_g.permute(0, 2, 1, 3)  # B, N, cheb_k, dim_in
-        x_gconv = torch.einsum('bnki,nkio->bno', x_g, weights) + bias # B, N, dim_out
+        # x_gconv = torch.einsum('bnki,bnkio->bno', x_g, weights) + bias  #b, N, dim_out
+        x_gconv = torch.einsum('bnki,nkio->bno', x_g, weights) + bias  #b, N, dim_out
+        # x_gconv = torch.einsum('bnki,kio->bno', x_g, self.weights) + self.bias    #[B,N,cheb_k,dim_in] *[N,cheb_k,dim_in,dim_out] =[B,N,dim_out]
         return x_gconv
 
-class GraphAttentionLayer(nn.Module):
-    """
-    Simple GAT layer, similar to https://arxiv.org/abs/1710.10903
-    """
-    def __init__(self, num_nodes, st_adj, st_dis, in_features, out_features, dropout, alpha, concat):
-        super(GraphAttentionLayer, self).__init__()
-        self.dropout = dropout
-        self.in_features = in_features
-        self.out_features = out_features
-        self.alpha = alpha
-        self.concat = concat
-        self.num_nodes = num_nodes
-        self.adj = st_adj
-        
-        self.dis = st_dis
-        self.W = nn.Parameter(torch.zeros(size=(in_features, out_features)))
-        nn.init.xavier_uniform_(self.W.data, gain=1.414)
-        self.a = nn.Parameter(torch.empty(size=(2*out_features, 1)))
-        nn.init.xavier_uniform_(self.a.data, gain=1.414)
+    @staticmethod
+    def get_laplacian(graph, I, normalize=True):
+        """
+        return the laplacian of the graph.
 
-        self.leakyrelu = nn.LeakyReLU(self.alpha)
-    def forward(self, h, ht):
-        '''
-        Args:
-            h: b,n,d
-            ht:b,n,d
-        Returns:
-        '''
-        h = torch.cat([ht,h],dim=1)         # b,2n,d
-        # dis = self.dis.to(h.device)
-        w  = self.W.to(h.device)
-        Wh = torch.einsum("bni,io->bno",h,w)                    # h.shape: (b, 2N, in_features), Wh.shape: (b, 2N, out_features)
-        
-        # Wh = torch.mm(h, w)
-        e = self._prepare_attentional_mechanism_input(Wh)       # b,2n,2n
-        
-        zero_vec = -9e15*torch.ones_like(e)
-        attention = torch.where(self.adj > 0, e, zero_vec)           # b,2n,2n
-        # 乘以权重矩阵
-        # attention = attention * dis
-        attention = F.softmax(attention, dim=1)
-        attention = F.dropout(attention, self.dropout, training=self.training)
-        h_prime = torch.matmul(attention, Wh)
-        h_prime = torch.cat([h_prime[:,:self.num_nodes],h_prime[:,self.num_nodes:]],dim=-1)
-        # h_prime = h_prime[:,self.num_nodes:]
-        
-        if self.concat:
-            return F.elu(h_prime)
+        :param graph: the graph structure without self loop, [N, N].
+        :param normalize: whether to used the normalized laplacian.
+        :return: graph laplacian.
+        """
+        if normalize:
+            D = torch.diag_embed(torch.sum(graph, dim=-1) ** (-1 / 2))
+            #L = I - torch.matmul(torch.matmul(D, graph), D)
+            L = torch.matmul(torch.matmul(D, graph), D)
         else:
-            return h_prime
-
-    def _prepare_attentional_mechanism_input(self, Wh):
-        # Wh.shape (b, 2N, out_feature)
-        # self.a.shape (2 * out_feature, 1)
-        # Wh1&2.shape (b, 2N, 1)
-        # e.shape (b, 2N, 2N)
-        a = self.a.to(Wh.device)
-        Wh1 = torch.matmul(Wh, a[:self.out_features, :])
-        Wh2 = torch.matmul(Wh, a[self.out_features:, :])
-        # broadcast add
-        e = Wh1 + Wh2.permute(0,2,1)
-        return self.leakyrelu(e)
-
-    def __repr__(self):
-        return self.__class__.__name__ + ' (' + str(self.in_features) + ' -> ' + str(self.out_features) + ')'
-
-class Mlp(nn.Module):
-    def __init__(self, in_features, hidden_features=None, out_features=None, act_layer=nn.GELU, drop=0.):
-        super().__init__()
-        out_features = out_features or in_features
-        hidden_features = hidden_features or in_features
-        self.fc1 = nn.Linear(in_features, hidden_features)
-        self.act = act_layer()
-        self.fc2 = nn.Linear(hidden_features, out_features)
-        self.drop = nn.Dropout(drop)
-
-    def forward(self, x):
-        x = self.fc1(x)
-        x = self.act(x)
-        x = self.drop(x)
-        x = self.fc2(x)
-        x = torch.abs(x)
-        x = self.drop(x)
-        return x
-
-class GAT(nn.Module):
-    def __init__(
-            self, num_nodes, st_adj, st_dis, dim_in, dim_out, gat_hidden, mlp_hidden, gat_drop=0.6, heads=1, alpha=0.2, concat=True,
-            mlp_act=nn.GELU, mlp_drop=.0):
-        super(GAT, self).__init__()
-        self.gat_drop = gat_drop
-        num_x = st_adj.size(0)//num_nodes
-        self.attentions = [GraphAttentionLayer(num_nodes,st_adj, st_dis, dim_in, gat_hidden, dropout=gat_drop, alpha=alpha, concat=concat) for _ in range(heads)]
-        self.output = Mlp(gat_hidden*heads*num_x, mlp_hidden, dim_out, act_layer=mlp_act, drop=mlp_drop)
-    def forward(self, x, xt):
-        '''
-        Args:
-            x: b,n,di
-            x_1:b,n,di
-        Returns:
-            x: b,n,do
-        '''
-        x = F.dropout(x, self.gat_drop, training=self.training)
-        x = torch.cat([att(x,xt) for att in self.attentions], dim=-1)
-        x = F.dropout(x, self.gat_drop, training=self.training)
-        
-        
-        x = x.unsqueeze(1)
-        x = F.elu(self.output(x))
-        x = x.squeeze(1)
-        
-        return x
+            graph = graph + I
+            D = torch.diag_embed(torch.sum(graph, dim=-1) ** (-1 / 2))
+            L = torch.matmul(torch.matmul(D, graph), D)
+        return L
 
 class Network(nn.Module):
-    def __init__(
-            self,
-            st_adj,
-            st_dis,
-            num_nodes,
-            input_dim,
-            output_dim,
-            in_steps,
-            out_steps,
-            dim_embed,
-            rnn_units,
-            rnn_layers,
-
-            # Encoder configuration
-            input_embedding_dim,
-            periods_embedding_dim,
-            weekend_embedding_dim,
-            holiday_embedding_dim,
-            spatial_embedding_dim,
-            adaptive_embedding_dim,
-            dim_embed_feature,
-            periods,
-
-            predict_time,
-            gat_hidden,
-            mlp_hidden,
-            gat_drop=0.6,
-            gat_heads=1,
-            gat_alpha=0.2,
-            gat_concat=True,
-            mlp_act='gelu',
-            mlp_drop=.0,
-            num_gat=0,
-            num_back=0
-    ):
+    def __init__(self, args):
         super(Network, self).__init__()
-        if mlp_act=='gelu':
-            mlp_act = nn.GELU
         # encoder
-        self.encoder = Encoder(num_nodes,input_embedding_dim,periods_embedding_dim,weekend_embedding_dim,
-                               holiday_embedding_dim,spatial_embedding_dim,adaptive_embedding_dim,
-                               dim_embed_feature,input_dim,periods)
-        self.mgstgnn = MGSTGNN(st_adj,st_dis,num_nodes,dim_embed_feature+input_dim,rnn_units,output_dim,
-                               rnn_layers,dim_embed,in_steps=in_steps,out_steps=out_steps,predict_time=predict_time,
-                               gat_hidden=gat_hidden, mlp_hidden=mlp_hidden,gat_drop=gat_drop,gat_heads=gat_heads,
-                               gat_alpha=gat_alpha,gat_concat=gat_concat, mlp_act=mlp_act, mlp_drop=mlp_drop,
-                               num_gat=num_gat,num_back=num_back)
+        # self.encoder = Encoder(num_nodes,input_embedding_dim,periods_embedding_dim,weekend_embedding_dim,
+        #                        holiday_embedding_dim,spatial_embedding_dim,adaptive_embedding_dim,
+        #                        dim_embed_feature,input_dim,periods)
+        self.mgstgnn = DDGCRN(args.num_nodes,args.input_dim,args.rnn_units,args.output_dim,args.num_grus,args.embed_dim,
+                              in_steps=args.in_steps,out_steps=args.out_steps,predict_time=args.predict_time,use_back=args.use_back)
     def forward(self,x):
+
         # 进行encoding
-        
-        enc = self.encoder(x)
-        
-        dat = torch.cat((x,enc),dim=-1)
-        out = self.mgstgnn(dat)
+        # enc = self.encoder(x)
+        # dat = torch.cat((x,enc),dim=-1)
+        out = self.mgstgnn(x)
         return out
 
 if __name__ == "__main__":
-    periods_dim = [24]
-    periods_arr = [288]
-    num_nodes = 307
-    device = torch.device("cuda", 0)
-    st_adj = torch.randn(num_nodes*2,num_nodes*2).to(device)
-    st_dis = torch.randn(num_nodes*2,num_nodes*2).to(device)
-    network = Network(st_adj,st_dis,307,4,1,12,12,8,32,3,80,periods_dim,6,2,0,8,120,periods_arr,2, 256, 256,
-                      0.6, 1, 0.2, True, 'gelu', .0, 0)
+    Mode = 'Train'
+    DATASET = 'PEMS03'
+    MODEL = "MGSTGNN"
+    DEBUG = 'True'
+    # get configuration
+    config_file = '../config/{}.yaml'.format(DATASET)
+    with open(config_file, "r") as f:
+        config = yaml.safe_load(f)
+    # parser
+    parser = argparse.ArgumentParser(description='arguments')
+    parser.add_argument('--dataset', default=DATASET, type=str)
+    parser.add_argument('--mode', default=Mode, type=str)
+    parser.add_argument('--debug', default=DEBUG, type=eval)
+    parser.add_argument('--model', default=MODEL, type=str)
+    parser.add_argument('--gpu_id', default=0, type=int)
+    # data
+    parser.add_argument('--val_ratio', default=config['data']['val_ratio'], type=float)
+    parser.add_argument('--test_ratio', default=config['data']['test_ratio'], type=float)
+    parser.add_argument('--in_steps', default=config['data']['in_steps'], type=int)
+    parser.add_argument('--out_steps', default=config['data']['out_steps'], type=int)
+    parser.add_argument('--num_nodes', default=config['data']['num_nodes'], type=int)
+    parser.add_argument('--normalizer', default=config['data']['normalizer'], type=str)
+    parser.add_argument('--adj_norm', default=config['data']['adj_norm'], type=eval)
+    parser.add_argument('--use_day', default=config['data']['use_day'], type=eval)
+    parser.add_argument('--use_week', default=config['data']['use_week'], type=eval)
+    parser.add_argument('--use_holiday', default=config['data']['use_holiday'], type=eval)
 
-    summary(network, [64, 12, 307, 4])
+    # model
+    parser.add_argument('--input_dim', default=config['model']['input_dim'], type=int)
+    parser.add_argument('--flow_dim', default=config['model']['flow_dim'], type=int)
+    parser.add_argument('--period_dim', default=config['model']['period_dim'], type=int)
+    parser.add_argument('--weekend_dim', default=config['model']['weekend_dim'], type=int)
+    parser.add_argument('--holiday_dim', default=config['model']['holiday_dim'], type=int)
+    parser.add_argument('--hop_dim', default=config['model']['hop_dim'], type=int)
+    parser.add_argument('--weather_dim', default=config['model']['weather_dim'], type=int)
+    parser.add_argument('--dim_discriminator', default=config['model']['dim_discriminator'], type=int)
+    parser.add_argument('--alpha_discriminator', default=config['model']['alpha_discriminator'], type=float)
+    parser.add_argument('--use_discriminator', default=config['model']['use_discriminator'], type=eval)
+
+    # parser.add_argument('--dim_embed_feature', default=config['model']['dim_embed_feature'], type=int)
+    # parser.add_argument('--input_embedding_dim', default=config['model']['input_embedding_dim'], type=int)
+    # parser.add_argument('--periods_embedding_dim', default=config['model']['periods_embedding_dim'], type=list)
+    # parser.add_argument('--weekend_embedding_dim', default=config['model']['weekend_embedding_dim'], type=int)
+    # parser.add_argument('--holiday_embedding_dim', default=config['model']['holiday_embedding_dim'], type=int)
+    # parser.add_argument('--spatial_embedding_dim', default=config['model']['spatial_embedding_dim'], type=int)
+    # parser.add_argument('--adaptive_embedding_dim', default=config['model']['adaptive_embedding_dim'], type=int)
+
+    parser.add_argument('--output_dim', default=config['model']['output_dim'], type=int)
+    parser.add_argument('--embed_dim', default=config['model']['embed_dim'], type=int)
+    parser.add_argument('--rnn_units', default=config['model']['rnn_units'], type=int)
+    parser.add_argument('--num_grus', default=config['model']['num_grus'], type=list)
+    parser.add_argument('--periods', default=config['model']['periods'][:config['model']['period_dim']], type=list)
+    parser.add_argument('--predict_time', default=config['model']['predict_time'], type=int)
+    parser.add_argument('--use_back', default=config['model']['use_back'], type=eval)
+    # train
+    parser.add_argument('--loss_func', default=config['train']['loss_func'], type=str)
+    parser.add_argument('--random', default=config['train']['random'], type=eval)
+    parser.add_argument('--seed', default=config['train']['seed'], type=int)
+    parser.add_argument('--batch_size', default=config['train']['batch_size'], type=int)
+    parser.add_argument('--epochs', default=config['train']['epochs'], type=int)
+    parser.add_argument('--lr_init', default=config['train']['lr_init'], type=float)
+    parser.add_argument('--lr_decay', default=config['train']['lr_decay'], type=eval)
+    parser.add_argument('--lr_decay_rate', default=config['train']['lr_decay_rate'], type=float)
+    parser.add_argument('--lr_decay_step', default=config['train']['lr_decay_step'], type=str)
+    parser.add_argument('--early_stop', default=config['train']['early_stop'], type=eval)
+    parser.add_argument('--early_stop_patience', default=config['train']['early_stop_patience'], type=int)
+    parser.add_argument('--grad_norm', default=config['train']['grad_norm'], type=eval)
+    parser.add_argument('--max_grad_norm', default=config['train']['max_grad_norm'], type=int)
+    parser.add_argument('--real_value', default=config['train']['real_value'], type=eval, help = 'use real value for loss calculation')
+    # test
+    parser.add_argument('--mae_thresh', default=config['test']['mae_thresh'], type=eval)
+    parser.add_argument('--mape_thresh', default=config['test']['mape_thresh'], type=float)
+    # log
+    parser.add_argument('--log_dir', default='./exps/logs/', type=str)
+    parser.add_argument('--log_step', default=config['log']['log_step'], type=int)
+    parser.add_argument('--plot', default=config['log']['plot'], type=eval)
+    args = parser.parse_args()
+    network = Network(args)
+    # network = DDGCRN(307,1,64,1,2,10,12,12,1)
+    summary(network, [args.batch_size, args.in_steps, args.num_nodes, args.input_dim])

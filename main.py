@@ -11,7 +11,7 @@ import argparse
 import configparser
 import time
 from datetime import datetime
-from model.MGSTGNN_DD1 import Network
+from model.MGSTGNN import Network
 from model.discriminator import Discriminator_spatial,Discriminator_temporal
 
 from trainer import Trainer
