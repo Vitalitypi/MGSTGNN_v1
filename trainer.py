@@ -108,7 +108,7 @@ class Trainer(object):
             #log information
             if (batch_idx+1) % self.args.log_step == 0:
                 self.logger.info('Train Epoch {}: {}/{} Generator Loss: {:.6f}'.format(
-                                 epoch,batch_idx, self.train_per_epoch,loss_G.item()))
+                                 epoch, batch_idx+1, self.train_per_epoch,loss_G.item()))
             if self.args.use_discriminator:
                 #-------------------------------------------------------------------
                 # Train Discriminator_spatial

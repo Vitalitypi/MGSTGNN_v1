@@ -12,21 +12,21 @@ def get_device(args):
         device = torch.device("cuda", args.gpu_id)
     else:
         device = torch.device("cpu")
-    set_seed(args) # reproductibility
+    init_seed(args.seed) # reproductibility
 
     return device
-def set_seed(args):
+def init_seed(seed):
     '''
     Disable cudnn to maximize reproducibility
     '''
     torch.cuda.cudnn_enabled = False
     torch.backends.cudnn.deterministic = True
-    os.environ['PYTHONHASHSEED'] = str(args.seed)
-    random.seed(args.seed)
-    np.random.seed(args.seed)
-    torch.manual_seed(args.seed)
+    os.environ['PYTHONHASHSEED'] = str(seed)
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
     if torch.cuda.is_available():
-        torch.cuda.manual_seed_all(args.seed)
+        torch.cuda.manual_seed_all(seed)
 def print_model_parameters(model, only_num = True):
     print('*****************Model Parameter*****************')
     if not only_num:
