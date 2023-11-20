@@ -164,17 +164,17 @@ class MGSTGNN(nn.Module):
         self.embed_dim = embed_dim
         self.num_grus=num_grus
         self.node_embeddings = nn.Parameter(torch.randn(self.num_node, embed_dim), requires_grad=True)
+        self.Flow_emb = nn.Linear(1,embed_dim)
         if use_D:
             self.T_i_D_emb = nn.Parameter(torch.empty(288, embed_dim))
         if use_W:
             self.D_i_W_emb = nn.Parameter(torch.empty(7, embed_dim))
         if use_H:
             self.Holiday_emb = nn.Parameter(torch.empty(2, embed_dim))
-        self.use_D,self.use_W,self.use_H,self.use_Hop = use_D,use_W,use_H,use_Hop
-        dim_in = 1
         if use_Hop:
-            dim_in+=1
-        self.encoder = DSTRNN(num_nodes, dim_in, rnn_units, embed_dim,num_grus, 12, use_back=use_back,
+            self.Hop_emb = nn.Linear(1,embed_dim)
+        self.use_D,self.use_W,self.use_H,self.use_Hop = use_D,use_W,use_H,use_Hop
+        self.encoder = DSTRNN(num_nodes, 1, rnn_units, embed_dim,num_grus, 12, use_back=use_back,
                               conv_steps=predict_time)
 
         #self.norm = nn.LayerNorm(args.rnn_units*len(self.num_grus), eps=1e-12)
@@ -184,28 +184,35 @@ class MGSTGNN(nn.Module):
 
         self.predict_time = predict_time
     def forward(self, source):
-        node_embedding = self.node_embeddings
+        node_embedding1 = self.node_embeddings
+        node_embedding2 = self.node_embeddings
+
+        flow_data = source[...,0]
+        flow_emb = self.Flow_emb(flow_data.unsqueeze(-1))
+        node_embedding2 = torch.mul(node_embedding2, flow_emb)
         if self.use_D:
             t_i_d_data   = source[..., 1]
             T_i_D_emb = self.T_i_D_emb[(t_i_d_data * 288).type(torch.LongTensor)]
-            node_embedding = torch.mul(node_embedding, T_i_D_emb)
+            node_embedding1 = torch.mul(node_embedding1, T_i_D_emb)
         if self.use_W:
             d_i_w_data   = source[..., 2]
             D_i_W_emb = self.D_i_W_emb[(d_i_w_data).type(torch.LongTensor)]
-            node_embedding = torch.mul(node_embedding, D_i_W_emb)
+            node_embedding1 = torch.mul(node_embedding1, D_i_W_emb)
         if self.use_H:
             holiday_data = source[..., 3]
             Holiday_emb = self.Holiday_emb[(holiday_data).type(torch.LongTensor)]
-            node_embedding = torch.mul(node_embedding, Holiday_emb)
-        node_embeddings=[node_embedding,self.node_embeddings]
+            node_embedding1 = torch.mul(node_embedding1, Holiday_emb)
+        if self.use_Hop:
+            hop_data = source[...,4]
+            Hop_emb = self.Hop_emb(hop_data.unsqueeze(-1))
+            node_embedding2 = torch.mul(node_embedding2, Hop_emb)
+        node_embeddings=[node_embedding1,self.node_embeddings,node_embedding2]
         # b,t,n,d = source.size()
         # source: B, T, N, D
         init_state = self.encoder.init_hidden(source.shape[0])#,self.num_node,self.hidden_dim
-        inp = source[..., 0].unsqueeze(-1)
-        if self.use_Hop:
-            inp = torch.cat([inp,source[..., 4].unsqueeze(-1)],dim=-1)
+        source = source[..., 0].unsqueeze(-1)
         # source = torch.stack([source[..., 0],source[..., 1]], dim=-1)
-        _, output = self.encoder(inp, init_state, node_embeddings) # B, T, N, hidden
+        _, output = self.encoder(source, init_state, node_embeddings) # B, T, N, hidden
 
         #output = self.out_dropout(self.norm(output[:, -self.predict_time:, :, :])) # B, r, N, hidden
 
@@ -233,7 +240,7 @@ class DSTRNN(nn.Module):
         ])
         if use_back>0:
             self.backs = nn.ModuleList([
-                nn.Linear(dim_out,dim_in)
+                nn.Linear(dim_out,dim_out)
                 for _ in range(sum(num_grus))
             ])
         # predict output
@@ -282,7 +289,10 @@ class DSTRNN(nn.Module):
                 inp = current_inputs[:, t, :, :]
                 if self.use_back:
                     inp = inp - self.backs[index1+index2](prev_state)
-                init_hidden_states[index1+index2] = self.grus[index1+index2](inp, prev_state, [node_embeddings[0][:, t, :, :], node_embeddings[1]]) # [B, N, hidden_dim]
+                init_hidden_states[index1+index2] = self.grus[index1+index2](inp, prev_state, [
+                    node_embeddings[0][:, t, :, :],
+                    node_embeddings[1],
+                    node_embeddings[2][:, t, :, :]]) # [B, N, hidden_dim]
                 inner_states.append(init_hidden_states[index1+index2])
             index1 += self.num_grus[i]
             current_inputs = torch.stack(inner_states, dim=1) # [B, T, N, D]
@@ -338,25 +348,31 @@ class GCN(nn.Module):
         self.bias_pool = nn.Parameter(torch.FloatTensor(embed_dim, dim_out)) # [D, F]
         self.dim_hidden1 = 16
         self.dim_hidden2 = 2
+        self.dim_hidden3 = 32
         self.embed_dim = embed_dim
-        self.fc=nn.Sequential(
-                OrderedDict([('fc1', nn.Linear(dim_in, self.dim_hidden1)),
-                             #('sigmoid1', nn.ReLU()),
-                             ('sigmoid1', nn.Sigmoid()),
-                             ('fc2', nn.Linear(self.dim_hidden1, self.dim_hidden2)),
-                             #('sigmoid1', nn.ReLU()),
-                             ('sigmoid2', nn.Sigmoid()),
-                             ('fc3', nn.Linear(self.dim_hidden2, self.embed_dim))]))
+        # self.fc=nn.Sequential(
+        #         OrderedDict([('fc1', nn.Linear(dim_in, self.dim_hidden1)),
+        #                      #('sigmoid1', nn.ReLU()),
+        #                      ('sigmoid1', nn.Sigmoid()),
+        #                      ('fc2', nn.Linear(self.dim_hidden1, self.dim_hidden2)),
+        #                      #('sigmoid1', nn.ReLU()),
+        #                      ('sigmoid2', nn.Sigmoid()),
+        #                      ('fc3', nn.Linear(self.dim_hidden2, self.embed_dim))]))
+        # self.att_q = nn.Linear(dim_in,self.dim_hidden3)
+        # self.att_k = nn.Linear(dim_in,self.dim_hidden3)
 
     def forward(self, x, node_embeddings):
 
 
-        # x shaped[B, N, C], node_embeddings shaped [[b, N, D], [N, D]]
+        # x shaped[B, N, C], node_embeddings shaped [[b, N, D], [N, D], [b, N, D]]
         # output shape [B, N, C]
         supports1 = torch.eye(self.node_num).to(x.device)
-        x_ = self.fc(x)
-        nodevec = torch.tanh(torch.mul(node_embeddings[0], x_))  #[B,N,dim_in]
+        # x_ = self.fc(x)
+        nodevec = torch.tanh(torch.mul(node_embeddings[0], node_embeddings[2]))  #[B,N,dim_in]
         supports2 = GCN.get_laplacian(F.relu(torch.matmul(nodevec, nodevec.transpose(2, 1))), supports1)
+        # q = self.att_q(x)
+        # k = self.att_k(x)
+        # supports2 = q @ k.permute(0,2,1)
         x_g1 = torch.einsum("nm,bmc->bnc", supports1, x)
         x_g2 = torch.einsum("bnm,bmc->bnc", supports2, x)
         x_g = torch.stack([x_g1,x_g2],dim=1)
@@ -398,7 +414,7 @@ class Network(nn.Module):
         self.mgstgnn = MGSTGNN(args.num_nodes,args.input_dim,args.rnn_units,args.output_dim,args.num_grus,args.embed_dim,
                                 in_steps=args.in_steps,out_steps=args.out_steps,predict_time=args.predict_time,
                                 use_back=args.use_back,use_D=args.period_dim > 0,use_W=args.weekend_dim > 0,
-                                use_H=args.holiday_dim > 0,use_Hop=args.hop_dim > 0)
+                                use_H=args.holiday_dim > 0)
     def forward(self,x):
 
         # 进行encoding
