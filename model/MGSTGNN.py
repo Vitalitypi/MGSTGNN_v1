@@ -51,7 +51,6 @@ class Encoder(nn.Module):
         )
         self.in_steps = in_steps
         self.input_dim = input_dim
-        self.node_embeddings = nn.Parameter(torch.randn(self.num_nodes, embed_dim), requires_grad=True)
         # 输入数据的映射
         self.input_proj = nn.Linear(input_dim, input_embedding_dim)
         # period的embedding
@@ -75,7 +74,8 @@ class Encoder(nn.Module):
             self.adaptive_embedding = nn.init.xavier_uniform_(
                 nn.Parameter(torch.empty(in_steps, num_nodes, self.adaptive_embedding_dim))
             )
-
+        self.node_embeddings = nn.Parameter(torch.randn(num_nodes, embed_dim), requires_grad=True)
+        self.time_embeddings = nn.Parameter(torch.randn(in_steps, embed_dim), requires_grad=True)
     def forward(self, x):
         '''
         将输入x映射到高维空间
@@ -86,6 +86,7 @@ class Encoder(nn.Module):
         '''
         batch_size = x.shape[0]
         node_embedding = self.node_embeddings
+        time_embedding = self.time_embeddings
         periods = []
         index = 1
         for i in range(self.num_periods):
@@ -106,12 +107,14 @@ class Encoder(nn.Module):
                 (period*self.periods[i]).long()
             )
             node_embedding = torch.mul(node_embedding, period_emb)
+            time_embedding = torch.mul(time_embedding, period_emb.transpose(2,1))
             features.append(period_emb)
         if self.weekend_embedding_dim > 0:
             weekend_emb = self.weekend_embedding(
                 weekend.long()
             )  # (batch_size, in_steps, num_nodes, weekend_embedding_dim)
             node_embedding = torch.mul(node_embedding, weekend_emb)
+            time_embedding = torch.mul(time_embedding, weekend_emb.transpose(2,1))
             features.append(weekend_emb)
         if self.holiday_embedding_dim > 0:
             holiday_emb = self.holiday_embedding(
@@ -129,8 +132,8 @@ class Encoder(nn.Module):
             )
             features.append(adp_emb)
         x = torch.cat(features, dim=-1)  # (batch_size, in_steps, num_nodes, model_dim)
-        node_embeddings = [node_embedding,self.node_embeddings]
-        return x, node_embeddings
+        embeddings = [node_embedding,time_embedding]
+        return x, embeddings
 
 class MGSTGNN(nn.Module):
     def __init__(
@@ -172,9 +175,9 @@ class MGSTGNN(nn.Module):
         self.predict_time = predict_time
     def forward(self, source):
         batch_size = source.shape[0]
-        embs, node_embeddings = self.encoder(source)
+        embs, embeddings = self.encoder(source)
         init_state = self.predictor.init_hidden(batch_size)#,self.num_node,self.hidden_dim
-        _, output = self.predictor(source[...,:1], embs, init_state, node_embeddings) # B, T, N, hidden
+        _, output = self.predictor(source[...,:1], embs, init_state, embeddings) # B, T, N, hidden
 
         return output
 
@@ -220,7 +223,7 @@ class DSTRNN(nn.Module):
             for _ in range(len(num_grus))
         ])
         self.conv_steps = conv_steps
-    def forward(self, x, embs, init_state, node_embeddings):
+    def forward(self, x, embs, init_state, embeddings):
         # shape of x: (B, T, N, D)
         # shape of init_state: (len(num_grus), B, N, hidden_dim)
         assert x.shape[2] == self.node_num and x.shape[3] == self.input_dim
@@ -244,7 +247,7 @@ class DSTRNN(nn.Module):
                 if self.use_back:
                     inp = inp - self.backs[index1+index2](prev_state)
                 inp = torch.cat([inp,embs[:,t]],dim=-1)
-                init_hidden_states[index1+index2] = self.grus[index1+index2](inp, prev_state, [node_embeddings[0][:, t, :, :], node_embeddings[1]]) # [B, N, hidden_dim]
+                init_hidden_states[index1+index2] = self.grus[index1+index2](inp, prev_state, [embeddings[0][:, t, :, :], embeddings[1][:, :, t, :]]) # [B, N, hidden_dim]
                 inner_states.append(init_hidden_states[index1+index2])
             index1 += self.num_grus[i]
             current_inputs = torch.stack(inner_states, dim=1) # [B, T, N, D]
@@ -274,16 +277,16 @@ class GRUCell(nn.Module):
         self.hidden_dim = dim_out
         self.gate = GCN(dim_in+self.hidden_dim, dim_out*2, embed_dim, node_num)
         self.update = GCN(dim_in+self.hidden_dim, dim_out, embed_dim, node_num)
-    def forward(self, x, state, node_embeddings):
+    def forward(self, x, state, embeddings):
 
         # x: B, num_nodes, input_dim
         # state: B, num_nodes, hidden_dim
         input_and_state = torch.cat((x, state), dim=-1) # [B, N, 1+D]
-        z_r = torch.sigmoid(self.gate(input_and_state, node_embeddings))
+        z_r = torch.sigmoid(self.gate(input_and_state, embeddings))
         z,r = torch.split(z_r,self.hidden_dim,dim=-1)
         # r = torch.sigmoid(self.gate_r(input_and_state, node_embeddings,time_embeddings))
         candidate = torch.cat((x, z*state), dim=-1)
-        hc = torch.tanh(self.update(candidate, node_embeddings))
+        hc = torch.tanh(self.update(candidate, embeddings))
         h = r*state + (1-r)*hc
 
 
@@ -298,57 +301,33 @@ class GCN(nn.Module):
         self.node_num = node_num
         self.weights_pool = nn.Parameter(torch.FloatTensor(embed_dim, 2, dim_in, dim_out)) # [D, C, F]
         self.bias_pool = nn.Parameter(torch.FloatTensor(embed_dim, dim_out)) # [D, F]
-        self.dim_hidden1 = 16
-        self.dim_hidden2 = 2
-        self.embed_dim = embed_dim
-        self.fc=nn.Sequential(
-                OrderedDict([('fc1', nn.Linear(dim_in, self.dim_hidden1)),
-                             #('sigmoid1', nn.ReLU()),
-                             ('sigmoid1', nn.Sigmoid()),
-                             ('fc2', nn.Linear(self.dim_hidden1, self.dim_hidden2)),
-                             #('sigmoid1', nn.ReLU()),
-                             ('sigmoid2', nn.Sigmoid()),
-                             ('fc3', nn.Linear(self.dim_hidden2, self.embed_dim))]))
-
-    def forward(self, x, node_embeddings):
-
-
-        # x shaped[B, N, C], node_embeddings shaped [[b, N, D], [N, D]]
+        self.norm = nn.LayerNorm(embed_dim, eps=1e-12)
+        self.drop = nn.Dropout(0.1)
+    def forward(self, x, embeddings):
+        # x shaped[B, N, C], node_embeddings shaped [b,t,N, D], time_embeddings shaped [N, N]
         # output shape [B, N, C]
+        node_embeddings, time_embeddings = embeddings[0],embeddings[1]
         supports1 = torch.eye(self.node_num).to(x.device)
-        x_ = self.fc(x)
-        nodevec = torch.tanh(torch.mul(node_embeddings[0], x_))  #[B,N,dim_in]
-        supports2 = GCN.get_laplacian(F.relu(torch.matmul(nodevec, nodevec.transpose(2, 1))), supports1)
+        node_embeddings = self.drop(
+            self.norm(node_embeddings + time_embeddings))  # torch.mul(node_embeddings, node_time)
+        supports2 = F.softmax(torch.matmul(node_embeddings, node_embeddings.transpose(1, 2)), dim=2)
         x_g1 = torch.einsum("nm,bmc->bnc", supports1, x)
         x_g2 = torch.einsum("bnm,bmc->bnc", supports2, x)
         x_g = torch.stack([x_g1,x_g2],dim=1)
-        weights = torch.einsum('nd,dkio->nkio', node_embeddings[1], self.weights_pool)    #[B,N,embed_dim]*[embed_dim,chen_k,dim_in,dim_out] =[B,N,cheb_k,dim_in,dim_out]
-                                                                                  #[N, cheb_k, dim_in, dim_out]=[nodes,cheb_k,hidden_size,output_dim]
-        bias = torch.matmul(node_embeddings[1], self.bias_pool) #N, dim_out                 #[che_k,nodes,nodes]* [batch,nodes,dim_in]=[B, cheb_k, N, dim_in]
+        weights = torch.einsum('bnd,dkio->bnkio', node_embeddings, self.weights_pool) # N, dim_in, dim_out
+        bias = torch.einsum('bnd,do->bno', node_embeddings, self.bias_pool) # b, N, dim_out
         x_g = x_g.permute(0, 2, 1, 3)  # B, N, cheb_k, dim_in
-        # x_gconv = torch.einsum('bnki,bnkio->bno', x_g, weights) + bias  #b, N, dim_out
-        x_gconv = torch.einsum('bnki,nkio->bno', x_g, weights) + bias  #b, N, dim_out
-        # x_gconv = torch.einsum('bnki,kio->bno', x_g, self.weights) + self.bias    #[B,N,cheb_k,dim_in] *[N,cheb_k,dim_in,dim_out] =[B,N,dim_out]
+        x_gconv = torch.einsum('bnki,bnkio->bno', x_g, weights) + bias  #b, N, dim_out
+
+        # support_set = [I, embedding]
+        # supports = torch.stack(support_set, dim=0)  # [3, N, N]
+        # weights = torch.einsum('nd,dkio->nkio', node_embeddings, self.weights_pool) # N, dim_in, dim_out
+        # bias = torch.matmul(node_embeddings, self.bias_pool) # N, dim_out
+        #
+        # x_g = torch.einsum("knm,bmc->bknc", supports, x) # B, N, dim_in
+        # x_g = x_g.permute(0, 2, 1, 3)  # B, N, cheb_k, dim_in
+        # x_gconv = torch.einsum('bnki,nkio->bno', x_g, weights) + bias # B, N, dim_out
         return x_gconv
-
-    @staticmethod
-    def get_laplacian(graph, I, normalize=True):
-        """
-        return the laplacian of the graph.
-
-        :param graph: the graph structure without self loop, [N, N].
-        :param normalize: whether to used the normalized laplacian.
-        :return: graph laplacian.
-        """
-        if normalize:
-            D = torch.diag_embed(torch.sum(graph, dim=-1) ** (-1 / 2))
-            #L = I - torch.matmul(torch.matmul(D, graph), D)
-            L = torch.matmul(torch.matmul(D, graph), D)
-        else:
-            graph = graph + I
-            D = torch.diag_embed(torch.sum(graph, dim=-1) ** (-1 / 2))
-            L = torch.matmul(torch.matmul(D, graph), D)
-        return L
 
 class Network(nn.Module):
     def __init__(self, args):

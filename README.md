@@ -10,6 +10,6 @@ python generate.py
 ### 2、training
 
 ```bash
-python main.py
+python -u main.py 2>&1 | tee exps/PEMS04.log
 ```
 
