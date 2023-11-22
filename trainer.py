@@ -216,7 +216,7 @@ class Trainer(object):
             print('Recreate {}'.format(loss_file))
 
         start_time = time.time()
-        for epoch in range(0, self.args.epochs):
+        for epoch in range(1, self.args.epochs+1):
             train_epoch_loss_G, train_epoch_loss_spatial, train_epoch_loss_temporal = self.train_epoch(epoch)
             if self.val_loader == None:
                 val_dataloader = self.test_loader

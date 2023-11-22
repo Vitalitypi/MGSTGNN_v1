@@ -83,6 +83,14 @@ args.add_argument('--weather_dim', default=config['model']['weather_dim'], type=
 args.add_argument('--dim_discriminator', default=config['model']['dim_discriminator'], type=int)
 args.add_argument('--alpha_discriminator', default=config['model']['alpha_discriminator'], type=float)
 args.add_argument('--use_discriminator', default=config['model']['use_discriminator'], type=eval)
+
+args.add_argument('--input_embedding_dim', default=config['model']['input_embedding_dim'], type=int)
+args.add_argument('--periods_embedding_dim', default=config['model']['periods_embedding_dim'], type=list)
+args.add_argument('--weekend_embedding_dim', default=config['model']['weekend_embedding_dim'], type=int)
+args.add_argument('--holiday_embedding_dim', default=config['model']['holiday_embedding_dim'], type=int)
+args.add_argument('--spatial_embedding_dim', default=config['model']['spatial_embedding_dim'], type=int)
+args.add_argument('--adaptive_embedding_dim', default=config['model']['adaptive_embedding_dim'], type=int)
+
 args.add_argument('--output_dim', default=config['model']['output_dim'], type=int)
 args.add_argument('--embed_dim', default=config['model']['embed_dim'], type=int)
 args.add_argument('--rnn_units', default=config['model']['rnn_units'], type=int)
@@ -118,8 +126,10 @@ args = args.parse_args()
 args.num_grus = [int(i) for i in list(args.num_grus.split(','))]
 args.periods = [int(i) for i in list(args.periods.split(','))][:args.period_dim]
 
-print(args)
 
+if args.random:
+    args.seed = torch.randint(1000, (1,))
+print(args)
 init_seed(args.seed)
 if torch.cuda.is_available():
     torch.cuda.set_device(int(args.device[5]))
