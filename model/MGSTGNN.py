@@ -1,6 +1,8 @@
 import argparse
 import configparser
 import time
+
+import numpy as np
 import torch
 import yaml
 from torch import nn
@@ -167,7 +169,7 @@ class MGSTGNN(nn.Module):
         self.encoder = Encoder(num_nodes,batch_size,input_embedding_dim,periods_embedding_dim,weekend_embedding_dim,
             holiday_embedding_dim, spatial_embedding_dim,adaptive_embedding_dim,input_dim,periods,embed_dim,in_steps)
 
-        self.predictor = DSTRNN(num_nodes, num_input_dim, dim_embed_feature, rnn_units, embed_dim,num_grus, in_steps,
+        self.predictor = DSTRNN(num_nodes, num_input_dim, dim_embed_feature, rnn_units, embed_dim,num_grus, in_steps, dim_out=output_dim,
                                 use_back=use_back,use_embs=use_embs,conv_steps=predict_time)
 
         self.predict_time = predict_time
@@ -180,13 +182,13 @@ class MGSTGNN(nn.Module):
         return output
 
 class DSTRNN(nn.Module):
-    def __init__(self, node_num, dim_in, dim_embs, dim_out, embed_dim, num_grus, in_steps=12,
+    def __init__(self, node_num, dim_in, dim_embs, hidden_dim, embed_dim, num_grus, in_steps=12, dim_out=1,
             use_back=False, use_embs=True, conv_steps=2, conv_bias=True):
         super(DSTRNN, self).__init__()
         assert len(num_grus) >= 1, 'At least one GRU layer in the Encoder.'
         self.node_num = node_num
         self.input_dim = dim_in
-        self.dim_out = dim_out
+        self.hidden_dim = hidden_dim
         self.use_back = use_back
         self.use_embs = use_embs
         self.num_grus = num_grus
@@ -194,24 +196,24 @@ class DSTRNN(nn.Module):
         if use_embs:
             dim_in_gru += dim_embs
         self.grus = nn.ModuleList([
-            GRUCell(node_num, dim_in_gru, dim_out, embed_dim)
+            GRUCell(node_num, dim_in_gru, hidden_dim, embed_dim)
             for _ in range(sum(num_grus))
         ])
         if use_back>0:
             self.backs = nn.ModuleList([
-                nn.Linear(dim_out,dim_in)
+                nn.Linear(hidden_dim,dim_in)
                 for _ in range(sum(num_grus))
             ])
         # predict output
         self.predictors = nn.ModuleList([
-             # nn.Linear(dim_out,dim_cat)
-             nn.Conv2d(conv_steps, dim_in * in_steps, kernel_size=(1,dim_out), bias=conv_bias)
+             # nn.Linear(hidden_dim,dim_cat)
+             nn.Conv2d(conv_steps, dim_out * in_steps, kernel_size=(1,hidden_dim), bias=conv_bias)
              for _ in num_grus
         ])
         # skip
         self.skips = nn.ModuleList([
-            # nn.Linear(dim_out,dim_in)
-            nn.Conv2d(conv_steps, dim_in * in_steps, kernel_size=(1,dim_out), bias=conv_bias)
+            # nn.Linear(hidden_dim,dim_in)
+            nn.Conv2d(conv_steps, dim_in * in_steps, kernel_size=(1,hidden_dim), bias=conv_bias)
             for _ in range(len(num_grus)-1)
         ])
         # norms
