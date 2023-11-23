@@ -12,6 +12,7 @@ class Encoder(nn.Module):
     def __init__(
             self,
             num_nodes,
+            batch_size,
             input_embedding_dim,
             periods_embedding_dim,
             weekend_embedding_dim,
@@ -40,19 +41,11 @@ class Encoder(nn.Module):
         self.spatial_embedding_dim = spatial_embedding_dim
         # 自适应的embedding维度
         self.adaptive_embedding_dim = adaptive_embedding_dim
-        # 编码后的总维度
-        self.model_dim = (
-                input_embedding_dim
-                + sum(periods_embedding_dim)
-                + weekend_embedding_dim
-                + holiday_embedding_dim
-                + spatial_embedding_dim
-                + adaptive_embedding_dim
-        )
         self.in_steps = in_steps
         self.input_dim = input_dim
         # 输入数据的映射
-        self.input_proj = nn.Linear(input_dim, input_embedding_dim)
+        if input_embedding_dim>0:
+            self.input_proj = nn.Linear(input_dim, input_embedding_dim)
         # period的embedding
         if len(self.periods_embedding_dim) > 0:
             self.periods_embedding = nn.ModuleList([
@@ -75,7 +68,7 @@ class Encoder(nn.Module):
                 nn.Parameter(torch.empty(in_steps, num_nodes, self.adaptive_embedding_dim))
             )
         self.node_embeddings = nn.Parameter(torch.randn(num_nodes, embed_dim), requires_grad=True)
-        self.time_embeddings = nn.Parameter(torch.randn(in_steps, embed_dim), requires_grad=True)
+        self.time_embeddings = nn.Parameter(torch.randn(batch_size,in_steps, embed_dim), requires_grad=True)
     def forward(self, x):
         '''
         将输入x映射到高维空间
@@ -86,7 +79,7 @@ class Encoder(nn.Module):
         '''
         batch_size = x.shape[0]
         node_embedding = self.node_embeddings
-        time_embedding = self.time_embeddings
+        time_embedding = self.time_embeddings[:batch_size]
         periods = []
         index = 1
         for i in range(self.num_periods):
@@ -99,22 +92,22 @@ class Encoder(nn.Module):
             holiday = x[..., index]
             index+=1
         x = x[..., : self.input_dim]
-        x = self.input_proj(x)  # (batch_size, in_steps, num_nodes, input_embedding_dim)
-        features = [x]
+        features = []
+        if self.input_embedding_dim>0:
+            input_emb = self.input_proj(x)  # (batch_size, in_steps, num_nodes, input_embedding_dim)
+            features.append(input_emb)
         for i in range(self.num_periods):
             period = periods[i]
             period_emb = self.periods_embedding[i](
                 (period*self.periods[i]).long()
             )
-            node_embedding = torch.mul(node_embedding, period_emb)
-            time_embedding = torch.mul(time_embedding, period_emb.transpose(2,1))
+            time_embedding = torch.mul(time_embedding, period_emb[:,:,0])
             features.append(period_emb)
         if self.weekend_embedding_dim > 0:
             weekend_emb = self.weekend_embedding(
                 weekend.long()
             )  # (batch_size, in_steps, num_nodes, weekend_embedding_dim)
-            node_embedding = torch.mul(node_embedding, weekend_emb)
-            time_embedding = torch.mul(time_embedding, weekend_emb.transpose(2,1))
+            time_embedding = torch.mul(time_embedding, weekend_emb[:,:,0])
             features.append(weekend_emb)
         if self.holiday_embedding_dim > 0:
             holiday_emb = self.holiday_embedding(
@@ -139,6 +132,7 @@ class MGSTGNN(nn.Module):
     def __init__(
             self,
             num_nodes,              #节点数
+            batch_size,
             input_dim,              #输入维度
             rnn_units,              #GRU循环单元数
             output_dim,             #输出维度
@@ -155,10 +149,14 @@ class MGSTGNN(nn.Module):
             holiday_embedding_dim=8,
             spatial_embedding_dim=0,
             adaptive_embedding_dim=8,
+            num_input_dim=1,
+            use_embs=True
     ):
         super(MGSTGNN, self).__init__()
+        assert num_input_dim <= input_dim
         self.num_node = num_nodes
         self.input_dim = input_dim
+        self.num_input_dim = num_input_dim
         self.hidden_dim = rnn_units
         self.output_dim = output_dim
         self.in_steps = in_steps
@@ -166,33 +164,37 @@ class MGSTGNN(nn.Module):
         self.embed_dim = embed_dim
         self.num_grus = num_grus
         dim_embed_feature = input_embedding_dim+sum(periods_embedding_dim)+weekend_embedding_dim + holiday_embedding_dim+spatial_embedding_dim+adaptive_embedding_dim
-        self.encoder = Encoder(num_nodes,input_embedding_dim,periods_embedding_dim,weekend_embedding_dim,
+        self.encoder = Encoder(num_nodes,batch_size,input_embedding_dim,periods_embedding_dim,weekend_embedding_dim,
             holiday_embedding_dim, spatial_embedding_dim,adaptive_embedding_dim,input_dim,periods,embed_dim,in_steps)
 
-        self.predictor = DSTRNN(num_nodes, 1, dim_embed_feature, rnn_units, embed_dim,num_grus, in_steps,
-                                use_back=use_back,conv_steps=predict_time)
+        self.predictor = DSTRNN(num_nodes, num_input_dim, dim_embed_feature, rnn_units, embed_dim,num_grus, in_steps,
+                                use_back=use_back,use_embs=use_embs,conv_steps=predict_time)
 
         self.predict_time = predict_time
     def forward(self, source):
         batch_size = source.shape[0]
         embs, embeddings = self.encoder(source)
         init_state = self.predictor.init_hidden(batch_size)#,self.num_node,self.hidden_dim
-        _, output = self.predictor(source[...,:1], embs, init_state, embeddings) # B, T, N, hidden
+        _, output = self.predictor(source[...,:self.num_input_dim], embs, init_state, embeddings) # B, T, N, hidden
 
         return output
 
 class DSTRNN(nn.Module):
     def __init__(self, node_num, dim_in, dim_embs, dim_out, embed_dim, num_grus, in_steps=12,
-            use_back=False, conv_steps=2, conv_bias=True):
+            use_back=False, use_embs=True, conv_steps=2, conv_bias=True):
         super(DSTRNN, self).__init__()
         assert len(num_grus) >= 1, 'At least one GRU layer in the Encoder.'
         self.node_num = node_num
         self.input_dim = dim_in
         self.dim_out = dim_out
         self.use_back = use_back
+        self.use_embs = use_embs
         self.num_grus = num_grus
+        dim_in_gru = dim_in
+        if use_embs:
+            dim_in_gru += dim_embs
         self.grus = nn.ModuleList([
-            GRUCell(node_num, dim_in + dim_embs, dim_out, embed_dim)
+            GRUCell(node_num, dim_in_gru, dim_out, embed_dim)
             for _ in range(sum(num_grus))
         ])
         if use_back>0:
@@ -246,8 +248,9 @@ class DSTRNN(nn.Module):
                 inp = current_inputs[:, t, :, :]
                 if self.use_back:
                     inp = inp - self.backs[index1+index2](prev_state)
-                inp = torch.cat([inp,embs[:,t]],dim=-1)
-                init_hidden_states[index1+index2] = self.grus[index1+index2](inp, prev_state, [embeddings[0][:, t, :, :], embeddings[1][:, :, t, :]]) # [B, N, hidden_dim]
+                if self.use_embs:
+                    inp = torch.cat([inp,embs[:,t]],dim=-1)
+                init_hidden_states[index1+index2] = self.grus[index1+index2](inp, prev_state, [embeddings[0], embeddings[1][:, t, :]]) # [B, N, hidden_dim]
                 inner_states.append(init_hidden_states[index1+index2])
             index1 += self.num_grus[i]
             current_inputs = torch.stack(inner_states, dim=1) # [B, T, N, D]
@@ -304,39 +307,32 @@ class GCN(nn.Module):
         self.norm = nn.LayerNorm(embed_dim, eps=1e-12)
         self.drop = nn.Dropout(0.1)
     def forward(self, x, embeddings):
-        # x shaped[B, N, C], node_embeddings shaped [b,t,N, D], time_embeddings shaped [N, N]
+        # x shaped[B, N, C], node_embeddings shaped [N, D], time_embeddings shaped [b,d]
         # output shape [B, N, C]
         node_embeddings, time_embeddings = embeddings[0],embeddings[1]
         supports1 = torch.eye(self.node_num).to(x.device)
-        node_embeddings = self.drop(
-            self.norm(node_embeddings + time_embeddings))  # torch.mul(node_embeddings, node_time)
-        supports2 = F.softmax(torch.matmul(node_embeddings, node_embeddings.transpose(1, 2)), dim=2)
+        embedding = self.drop(
+            self.norm(node_embeddings.unsqueeze(0) + time_embeddings.unsqueeze(1)))  # torch.mul(node_embeddings, node_time)
+        supports2 = F.softmax(torch.matmul(embedding, embedding.transpose(1, 2)), dim=2)    # b,n,n
         x_g1 = torch.einsum("nm,bmc->bnc", supports1, x)
         x_g2 = torch.einsum("bnm,bmc->bnc", supports2, x)
-        x_g = torch.stack([x_g1,x_g2],dim=1)
-        weights = torch.einsum('bnd,dkio->bnkio', node_embeddings, self.weights_pool) # N, dim_in, dim_out
-        bias = torch.einsum('bnd,do->bno', node_embeddings, self.bias_pool) # b, N, dim_out
+        x_g = torch.stack([x_g1,x_g2],dim=1)        # b,2,n,d
+        weights = torch.einsum('nd,dkio->nkio', node_embeddings, self.weights_pool) # N, dim_in, dim_out
+        bias = torch.einsum('bd,do->bo', time_embeddings, self.bias_pool) # b, N, dim_out
         x_g = x_g.permute(0, 2, 1, 3)  # B, N, cheb_k, dim_in
-        x_gconv = torch.einsum('bnki,bnkio->bno', x_g, weights) + bias  #b, N, dim_out
+        x_gconv = torch.einsum('bnki,nkio->bno', x_g, weights) + bias.unsqueeze(1)  #b, N, dim_out
 
-        # support_set = [I, embedding]
-        # supports = torch.stack(support_set, dim=0)  # [3, N, N]
-        # weights = torch.einsum('nd,dkio->nkio', node_embeddings, self.weights_pool) # N, dim_in, dim_out
-        # bias = torch.matmul(node_embeddings, self.bias_pool) # N, dim_out
-        #
-        # x_g = torch.einsum("knm,bmc->bknc", supports, x) # B, N, dim_in
-        # x_g = x_g.permute(0, 2, 1, 3)  # B, N, cheb_k, dim_in
-        # x_gconv = torch.einsum('bnki,nkio->bno', x_g, weights) + bias # B, N, dim_out
         return x_gconv
 
 class Network(nn.Module):
     def __init__(self, args):
         super(Network, self).__init__()
-        self.mgstgnn = MGSTGNN(args.num_nodes,args.input_dim,args.rnn_units,args.output_dim,args.num_grus,args.embed_dim,
+        self.mgstgnn = MGSTGNN(args.num_nodes,args.batch_size,args.input_dim,args.rnn_units,args.output_dim,args.num_grus,args.embed_dim,
             in_steps=args.in_steps,out_steps=args.out_steps,predict_time=args.predict_time,use_back=args.use_back,
             periods=args.periods,input_embedding_dim=args.input_embedding_dim,periods_embedding_dim=args.periods_embedding_dim,
             weekend_embedding_dim=args.weekend_embedding_dim,holiday_embedding_dim=args.holiday_embedding_dim,
-            spatial_embedding_dim=args.spatial_embedding_dim,adaptive_embedding_dim=args.adaptive_embedding_dim)
+            spatial_embedding_dim=args.spatial_embedding_dim,adaptive_embedding_dim=args.adaptive_embedding_dim,num_input_dim=args.num_input_dim,
+            use_embs=args.use_embs)
     def forward(self,x):
 
         out = self.mgstgnn(x)
@@ -344,7 +340,7 @@ class Network(nn.Module):
 
 if __name__ == "__main__":
     args = argparse.ArgumentParser(description='arguments')
-    args.add_argument('--dataset', default='PEMS08', type=str)
+    args.add_argument('--dataset', default='PEMS04', type=str)
     args.add_argument('--mode', default='train', type=str)
     args.add_argument('--device', default='cuda:0', type=str, help='indices of GPUs')
     args.add_argument('--debug', default='False', type=eval)
@@ -377,6 +373,10 @@ if __name__ == "__main__":
     args.add_argument('--dim_discriminator', default=config['model']['dim_discriminator'], type=int)
     args.add_argument('--alpha_discriminator', default=config['model']['alpha_discriminator'], type=float)
     args.add_argument('--use_discriminator', default=config['model']['use_discriminator'], type=eval)
+
+    args.add_argument('--use_embs', default=config['model']['use_embs'], type=eval)
+    args.add_argument('--num_input_dim', default=config['model']['num_input_dim'], type=int)
+
     args.add_argument('--input_embedding_dim', default=config['model']['input_embedding_dim'], type=int)
     args.add_argument('--periods_embedding_dim', default=config['model']['periods_embedding_dim'], type=str)
     args.add_argument('--weekend_embedding_dim', default=config['model']['weekend_embedding_dim'], type=int)

@@ -1,6 +1,6 @@
 import torch
 
-x = torch.randn((32,307,12))
-b = torch.randn((12,307))
+import numpy as np
 
-print(torch.mul(x,b).size())
+data = np.load('./dataset/PEMS04/pattern.npz')['data']
+print(data.shape)

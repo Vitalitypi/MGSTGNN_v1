@@ -50,7 +50,7 @@ def init_model(model):
 
 #parser
 args = argparse.ArgumentParser(description='arguments')
-args.add_argument('--dataset', default='PEMS03', type=str)
+args.add_argument('--dataset', default='PEMS07', type=str)
 args.add_argument('--mode', default='train', type=str)
 args.add_argument('--device', default='cuda:0', type=str, help='indices of GPUs')
 args.add_argument('--debug', default='False', type=eval)
@@ -84,8 +84,12 @@ args.add_argument('--dim_discriminator', default=config['model']['dim_discrimina
 args.add_argument('--alpha_discriminator', default=config['model']['alpha_discriminator'], type=float)
 args.add_argument('--use_discriminator', default=config['model']['use_discriminator'], type=eval)
 
+args.add_argument('--use_embs', default=config['model']['use_embs'], type=eval)
+args.add_argument('--num_input_dim', default=config['model']['num_input_dim'], type=int)
+
+
 args.add_argument('--input_embedding_dim', default=config['model']['input_embedding_dim'], type=int)
-args.add_argument('--periods_embedding_dim', default=config['model']['periods_embedding_dim'], type=list)
+args.add_argument('--periods_embedding_dim', default=config['model']['periods_embedding_dim'], type=str)
 args.add_argument('--weekend_embedding_dim', default=config['model']['weekend_embedding_dim'], type=int)
 args.add_argument('--holiday_embedding_dim', default=config['model']['holiday_embedding_dim'], type=int)
 args.add_argument('--spatial_embedding_dim', default=config['model']['spatial_embedding_dim'], type=int)
@@ -125,7 +129,7 @@ args.add_argument('--plot', default=config['log']['plot'], type=eval)
 args = args.parse_args()
 args.num_grus = [int(i) for i in list(args.num_grus.split(','))]
 args.periods = [int(i) for i in list(args.periods.split(','))][:args.period_dim]
-
+args.periods_embedding_dim = [int(i) for i in list(args.periods_embedding_dim.split(','))][:args.period_dim]
 
 if args.random:
     args.seed = torch.randint(1000, (1,))
