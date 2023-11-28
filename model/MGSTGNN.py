@@ -31,7 +31,7 @@ class Encoder(nn.Module):
         self.in_steps = in_steps
         self.input_dim = input_dim
         # period的embedding
-        if weekend_embedding_dim>0:
+        if periods_embedding_dim>0:
             self.periods_embedding = nn.Embedding(periods, periods_embedding_dim)
         # 每周的embedding
         if weekend_embedding_dim>0:
@@ -263,7 +263,7 @@ class Network(nn.Module):
 
 if __name__ == "__main__":
     args = argparse.ArgumentParser(description='arguments')
-    args.add_argument('--dataset', default='PEMS08', type=str)
+    args.add_argument('--dataset', default='PEMS03', type=str)
     args.add_argument('--mode', default='train', type=str)
     args.add_argument('--device', default='cuda:0', type=str, help='indices of GPUs')
     args.add_argument('--debug', default='False', type=eval)
