@@ -16,24 +16,17 @@ def record_loss(loss_file, loss):
 class Trainer(object):
     def __init__(self,
                  args,
-                 generator, discriminator_spatial,discriminator_temporal,
+                 generator,
                  train_loader, val_loader, test_loader, scaler,
-                 loss_G, loss_D,
-                 optimizer_G, optimizer_spatial, optimizer_temporal,
-                 lr_scheduler_G, lr_scheduler_spatial, lr_scheduler_temporal):
+                 loss_G,
+                 optimizer_G,
+                 lr_scheduler_G):
         super(Trainer, self).__init__()
         self.args = args
         self.model = generator
-        self.discriminator_spatial = discriminator_spatial
-        self.discriminator_temporal = discriminator_temporal
         self.loss_G = loss_G
-        self.loss_D = loss_D
         self.optimizer_G = optimizer_G
-        self.optimizer_spatial = optimizer_spatial
-        self.optimizer_temporal = optimizer_temporal
         self.lr_scheduler_G = lr_scheduler_G
-        self.lr_scheduler_spatial = lr_scheduler_spatial
-        self.lr_scheduler_temporal = lr_scheduler_temporal
 
         self.train_loader = train_loader
         self.val_loader = val_loader
@@ -61,22 +54,9 @@ class Trainer(object):
     def train_epoch(self, epoch):
         self.model.train()
         total_loss_G = 0
-        total_loss_spatial = 0
-        total_loss_temporal = 0
         for batch_idx, (data, target) in enumerate(self.train_loader):
-            batch_size = data.shape[0]
             data = data[..., :self.args.input_dim]
             label = target[..., :self.args.output_dim]  # (..., 1)
-            valid_spatial,fake_spatial,valid_temporal,fake_temporal = None,None,None,None
-            if self.args.use_discriminator:
-                # Adversarial ground truths
-                cuda = True if torch.cuda.is_available() else False
-                TensorFloat = torch.cuda.FloatTensor if cuda else torch.FloatTensor
-                valid_spatial = torch.autograd.Variable(TensorFloat(batch_size*self.args.num_nodes, 1).fill_(1.0), requires_grad=False)
-                fake_spatial = torch.autograd.Variable(TensorFloat(batch_size*self.args.num_nodes, 1).fill_(0.0), requires_grad=False)
-
-                valid_temporal = torch.autograd.Variable(TensorFloat(batch_size*self.args.out_steps, 1).fill_(1.0), requires_grad=False)
-                fake_temporal = torch.autograd.Variable(TensorFloat(batch_size*self.args.out_steps, 1).fill_(0.0), requires_grad=False)
             #-------------------------------------------------------------------
             # Train Generator
             #-------------------------------------------------------------------
@@ -88,18 +68,8 @@ class Trainer(object):
             if self.args.real_value:
                 output = self.scaler.inverse_transform(output)
                 label = self.scaler.inverse_transform(label)
-            fake_input_spatial,true_input_spatial,fake_input_temporal,true_input_temporal = None,None,None,None
-            if self.args.use_discriminator:
-                fake_input_spatial = self.scaler.transform(output) if self.args.real_value else output # [B'', W, N, 1] // [B'', H, N, 1] -> [B'', W+H, N, 1]
-                true_input_spatial = self.scaler.transform(label) if self.args.real_value else label
-
-                fake_input_temporal = self.scaler.transform(output) if self.args.real_value else output # [B'', W, N, 1] // [B'', H, N, 1] -> [B'', W+H, N, 1]
-                true_input_temporal = self.scaler.transform(label) if self.args.real_value else label
 
             loss_G = self.loss_G(output.cuda(), label)
-            if self.args.use_discriminator:
-                loss_G = loss_G + self.loss_D(self.discriminator_spatial(fake_input_spatial), valid_spatial) + \
-                     self.loss_D(self.discriminator_temporal(fake_input_temporal), valid_temporal)
             loss_G.backward()
 
             # add max grad clipping
@@ -111,49 +81,15 @@ class Trainer(object):
             if (batch_idx+1) % self.args.log_step == 0:
                 self.logger.info('Train Epoch {}: {}/{} Generator Loss: {:.6f}'.format(
                                  epoch, batch_idx+1, self.train_per_epoch,loss_G.item()))
-            if self.args.use_discriminator:
-                #-------------------------------------------------------------------
-                # Train Discriminator_spatial
-                #-------------------------------------------------------------------
-                self.optimizer_spatial.zero_grad()
-                real_loss_spatial = self.loss_D(self.discriminator_spatial(true_input_spatial), valid_spatial)
-                fake_loss_spatial = self.loss_D(self.discriminator_spatial(fake_input_spatial.detach()), fake_spatial)
-                loss_spatial = 0.5 * (real_loss_spatial + fake_loss_spatial)
-                loss_spatial.backward()
-                self.optimizer_spatial.step()
-                total_loss_spatial += loss_spatial.item()
-
-                #-------------------------------------------------------------------
-                # Train Discriminator_temporal
-                #-------------------------------------------------------------------
-                self.optimizer_temporal.zero_grad()
-                real_loss_temporal = self.loss_D(self.discriminator_temporal(true_input_temporal), valid_temporal)
-                fake_loss_temporal = self.loss_D(self.discriminator_temporal(fake_input_temporal.detach()), fake_temporal)
-                loss_temporal = 0.5 * (real_loss_temporal + fake_loss_temporal)
-                loss_temporal.backward()
-                self.optimizer_temporal.step()
-                total_loss_temporal += loss_temporal.item()
-
-                #log information
-                if (batch_idx+1) % self.args.log_step == 0:
-                    self.logger.info('spatial Discriminator Loss: {:.6f} temporal Discriminator Loss: {:.6f}'.format(
-                                     loss_spatial.item(), loss_temporal.item()))
         train_epoch_loss_G = total_loss_G / self.train_per_epoch # average generator loss
-        train_epoch_loss_spatial = total_loss_spatial / self.train_per_epoch # average discriminator loss
-        train_epoch_loss_temporal = total_loss_temporal / self.train_per_epoch
-        self.logger.info('**********Train Epoch {}: Averaged Generator Loss: {:.6f}, Averaged spatial Discriminator Loss: {:.6f}, Averaged temporal Discriminator Loss: {:.6f}'.format(
+        self.logger.info('**********Train Epoch {}: Averaged Generator Loss: {:.6f}'.format(
                          epoch,
-                         train_epoch_loss_G,
-                         train_epoch_loss_spatial,
-                         train_epoch_loss_temporal
+                         train_epoch_loss_G
         ))
         # learning rate decay
         if self.args.lr_decay:
             self.lr_scheduler_G.step()
-            if self.args.use_discriminator:
-                self.lr_scheduler_spatial.step()
-                self.lr_scheduler_temporal.step()
-        return train_epoch_loss_G, train_epoch_loss_spatial, train_epoch_loss_temporal
+        return train_epoch_loss_G
 
     def val_epoch(self, epoch, val_dataloader):
         self.model.eval()
@@ -217,7 +153,7 @@ class Trainer(object):
 
         start_time = time.time()
         for epoch in range(1, self.args.epochs+1):
-            train_epoch_loss_G, train_epoch_loss_spatial, train_epoch_loss_temporal = self.train_epoch(epoch)
+            train_epoch_loss_G = self.train_epoch(epoch)
             if self.val_loader == None:
                 val_dataloader = self.test_loader
             else:

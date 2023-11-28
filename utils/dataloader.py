@@ -7,30 +7,9 @@ from utils.norm import StandardScaler
 
 
 # For PEMS03/04/07/08 Datasets
-def get_dataloader_pems(dataset, batch_size=64, val_ratio=0.2, test_ratio=0.2, in_steps=12, out_steps=12,
-                        flow_dim=1, period_dim=1, weekend_dim=1, holiday_dim=1, hop_dim=1, weather_dim=1):
-    # load flow data
-    data = np.load('./dataset/{}/{}.npz'.format(dataset, dataset))['data'][..., :flow_dim]
-    # load period data
-    if period_dim>0:
-        period = np.load('./dataset/{}/period.npz'.format(dataset))['data'][..., :period_dim]
-        data = np.concatenate([data,period],axis=-1)
-    # load weekend data
-    if weekend_dim>0:
-        weekend = np.load('./dataset/{}/weekend.npz'.format(dataset))['data'][..., :weekend_dim]
-        data = np.concatenate([data,weekend],axis=-1)
-    # load holiday data
-    if holiday_dim>0:
-        holiday = np.load('./dataset/{}/holiday.npz'.format(dataset))['data'][..., :holiday_dim]
-        data = np.concatenate([data,holiday],axis=-1)
-    # load hops data
-    if hop_dim>0:
-        hop = np.load('./dataset/{}/hop.npz'.format(dataset))['data'][...,:hop_dim]
-        data = np.concatenate([data,hop],axis=-1)
-    # load weather data
-    if weather_dim>0:
-        weather = np.load('./dataset/{}/weather.npz'.format(dataset))['data'][...,:weather_dim]
-        data = np.concatenate([data,weather],axis=-1)
+def get_dataloader_pems(dataset, batch_size=64, val_ratio=0.2, test_ratio=0.2, in_steps=12, out_steps=12):
+    # load data
+    data = np.load('./dataset/{}/{}.npz'.format(dataset, dataset))['data']
     # print the shape of data
     print(data.shape)
     # normalize data(only normalize the first dimension data)
