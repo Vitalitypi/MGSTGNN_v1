@@ -38,7 +38,12 @@ class Encoder(nn.Module):
         # 每周的embedding
         if weekend_embedding_dim>0:
             self.weekend_embedding = nn.Embedding(weekend, weekend_embedding_dim)
-
+        # 空间的embedding
+        if node_feature != None:
+            self.freeway_embedding = nn.Embedding(6,embed_dim)
+            self.direction_embedding = nn.Embedding(4,embed_dim)
+            self.waytype_embedding = nn.Embedding(3,embed_dim)
+            self.length_proj = nn.Linear(1,embed_dim)
         self.node_embeddings = nn.Parameter(torch.randn(num_nodes, embed_dim), requires_grad=True)
         self.time_embeddings = nn.Parameter(torch.randn(batch_size,in_steps, embed_dim), requires_grad=True)
     def forward(self, x):
@@ -67,7 +72,15 @@ class Encoder(nn.Module):
                 weekend.long()
             )  # (batch_size, in_steps, num_nodes, weekend_embedding_dim)
             time_embedding = torch.mul(time_embedding, weekend_emb[:,:,0])
-
+        if self.node_feature != None:
+            free = self.freeway_embedding(self.node_feature[...,0].long())
+            node_embedding = torch.mul(node_embedding, free)
+            dire = self.direction_embedding(self.node_feature[...,1].long())
+            node_embedding = torch.mul(node_embedding, dire)
+            watp = self.waytype_embedding(self.node_feature[..., 2].long())
+            node_embedding = torch.mul(node_embedding,watp)
+            lent = self.length_proj(self.node_feature[...,-1:])
+            node_embedding = torch.mul(node_embedding,lent)
         embeddings = [node_embedding,time_embedding]
         return embeddings
 
