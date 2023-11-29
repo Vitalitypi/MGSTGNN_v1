@@ -15,6 +15,7 @@ def get_device(args):
     init_seed(args.seed) # reproductibility
 
     return device
+
 def init_seed(seed):
     '''
     Disable cudnn to maximize reproducibility
@@ -27,6 +28,7 @@ def init_seed(seed):
     torch.manual_seed(seed)
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
+
 def print_model_parameters(model, only_num = True):
     print('*****************Model Parameter*****************')
     if not only_num:
@@ -35,12 +37,14 @@ def print_model_parameters(model, only_num = True):
     total_num = sum([param.nelement() for param in model.parameters()])
     print('Total params num: {}'.format(total_num))
     print('*****************Finish Parameter****************')
+
 def masked_mae_loss(scaler, mask_value):
     def loss(preds, labels):
         mae = MAE_torch(pred=preds, true=labels, mask_value=mask_value)
         return mae
 
     return loss
+
 def get_logger(root, name=None, debug=True):
     # when debug is true, show DEBUG and INFO in screen
     # when debug is false, show DEBUG in file and info in both screen&file
@@ -72,3 +76,29 @@ def get_logger(root, name=None, debug=True):
 
     return logger
 
+def generate_weekend(DATASET):
+    day_dict = {
+        'PEMS03':'2018-09-01',
+        'PEMS04':'2018-01-01',
+        'PEMS07':'2017-05-01',
+        'PEMS08':'2016-07-01'
+    }
+    # get basic flow data
+    flow_data = np.load('../dataset/{}/{}.npz'.format(DATASET,DATASET))['data']
+    flow_data = flow_data[...,:1]
+    print(flow_data.shape)
+    time_stamps,num_nodes,dim = flow_data.shape
+    start_date = datetime.strptime(day_dict[DATASET], "%Y-%m-%d")
+    print('the start date of dataset: ', start_date)
+
+    res = np.zeros((time_stamps,num_nodes,1))
+    current_date = start_date
+    for i in range(time_stamps//288):
+        date_info = np.zeros((288,num_nodes))
+        if current_date.weekday()>=5:
+            date_info = np.ones((288,num_nodes))
+            print("This is a weekend! ", current_date)
+
+        res[i*288:(i+1)*288,:,0] = date_info
+
+        current_date = current_date + dt.timedelta(days=1)

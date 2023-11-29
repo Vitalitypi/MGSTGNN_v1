@@ -2,16 +2,47 @@ import csv
 
 import numpy as np
 import torch
-
+import datetime as dt
+from datetime import datetime
 from utils.norm import StandardScaler
+
+def get_tod(periods,time_stamps,num_nodes):
+    tod = np.zeros((time_stamps, num_nodes, 1))
+    for t in range(time_stamps):
+        tod[t, :, 0] = np.ones(num_nodes) * ((t % periods)/periods)
+    return tod
+
+def get_dow(dataset,time_stamps,num_nodes,periods):
+    day_dict = {
+        'PEMS03':'2018-09-01',
+        'PEMS04':'2018-01-01',
+        'PEMS07':'2017-05-01',
+        'PEMS08':'2016-07-01'
+    }
+    start_date = datetime.strptime(day_dict[dataset], "%Y-%m-%d")
+    dow = np.zeros((time_stamps,num_nodes,1))
+    current_date = start_date
+    for i in range(time_stamps//periods):
+        date_info = np.ones((periods,num_nodes))*(current_date.weekday())
+        print(date_info[0,0])
+        dow[i*periods:(i+1)*periods,:,0] = date_info
+
+        current_date = current_date + dt.timedelta(days=1)
+    return dow
 
 
 # For PEMS03/04/07/08 Datasets
-def get_dataloader_pems(dataset, batch_size=64, val_ratio=0.2, test_ratio=0.2, in_steps=12, out_steps=12):
+def get_dataloader_pems(dataset, batch_size=64, val_ratio=0.2, test_ratio=0.2, in_steps=12, out_steps=12, periods=288):
     # load data
-    data = np.load('./dataset/{}/{}.npz'.format(dataset, dataset))['data']
+    data = np.load('./dataset/{}/{}.npz'.format(dataset, dataset))['data'][...,:1]
     # print the shape of data
     print(data.shape)
+    time_stamps, num_nodes, _ = data.shape
+    tods = get_tod(periods,time_stamps,num_nodes)
+    dows = get_dow(dataset,time_stamps,num_nodes,periods)
+    # concatenate all data
+    data = np.concatenate([data,tods,dows],axis=-1)
+
     # normalize data(only normalize the first dimension data)
     mean = data[..., 0].mean()
     std = data[..., 0].std()
