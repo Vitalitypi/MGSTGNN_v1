@@ -1,29 +1,29 @@
 import os
 import sys
-file_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-print(file_dir)
-sys.path.append(file_dir)
-
 import torch
-import numpy as np
 import torch.nn as nn
 import argparse
 import configparser
-import time
 from datetime import datetime
 from model.MGSTGNN import Network
 
 from trainer import Trainer
 from utils.util import init_seed
-from utils.dataloader import get_dataloader_pems, get_adj_dis_matrix, get_node_feature
+from utils.dataloader import get_dataloader_pems
 from utils.util import print_model_parameters
 import warnings
-warnings.filterwarnings('ignore')
 
+from utils.metrics import MAE_torch
+
+warnings.filterwarnings('ignore')
 
 #*************************************************************************#
 
-from utils.metrics import MAE_torch
+
+file_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+print(file_dir)
+sys.path.append(file_dir)
+
 def masked_mae_loss(scaler, mask_value):
     def loss(preds, labels):
         if scaler:
@@ -124,10 +124,6 @@ if torch.cuda.is_available():
 else:
     args.device = 'cpu'
 
-args.node_feature = None
-if args.dataset.lower() == 'pems03':
-    node_feature = get_node_feature(args1.dataset,args.num_nodes)
-    args.node_feature = torch.Tensor(node_feature)
 
 #init model
 model = Network(args)

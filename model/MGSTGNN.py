@@ -18,7 +18,6 @@ class Encoder(nn.Module):
             weekend=7,
             embed_dim=12,
             in_steps=12,
-            node_feature=None,
     ):
         super(Encoder, self).__init__()
 
@@ -31,19 +30,12 @@ class Encoder(nn.Module):
         self.weekend_embedding_dim = weekend_embedding_dim
         self.in_steps = in_steps
         self.input_dim = input_dim
-        self.node_feature = node_feature
         # period的embedding
         if periods_embedding_dim>0:
             self.periods_embedding = nn.Embedding(periods, periods_embedding_dim)
         # 每周的embedding
         if weekend_embedding_dim>0:
             self.weekend_embedding = nn.Embedding(weekend, weekend_embedding_dim)
-        # 空间的embedding
-        if node_feature != None:
-            self.freeway_embedding = nn.Embedding(6,embed_dim)
-            self.direction_embedding = nn.Embedding(4,embed_dim)
-            self.waytype_embedding = nn.Embedding(3,embed_dim)
-            self.length_proj = nn.Linear(1,embed_dim)
         self.node_embeddings = nn.Parameter(torch.randn(num_nodes, embed_dim), requires_grad=True)
         self.time_embeddings = nn.Parameter(torch.randn(batch_size,in_steps, embed_dim), requires_grad=True)
     def forward(self, x):
@@ -72,15 +64,6 @@ class Encoder(nn.Module):
                 weekend.long()
             )  # (batch_size, in_steps, num_nodes, weekend_embedding_dim)
             time_embedding = torch.mul(time_embedding, weekend_emb[:,:,0])
-        if self.node_feature != None:
-            free = self.freeway_embedding(self.node_feature[...,0].long())
-            node_embedding = torch.mul(node_embedding, free)
-            dire = self.direction_embedding(self.node_feature[...,1].long())
-            node_embedding = torch.mul(node_embedding, dire)
-            watp = self.waytype_embedding(self.node_feature[..., 2].long())
-            node_embedding = torch.mul(node_embedding,watp)
-            lent = self.length_proj(self.node_feature[...,-1:])
-            node_embedding = torch.mul(node_embedding,lent)
         embeddings = [node_embedding,time_embedding]
         return embeddings
 
@@ -103,7 +86,6 @@ class MGSTGNN(nn.Module):
             periods_embedding_dim=12,
             weekend_embedding_dim=12,
             num_input_dim=1,
-            node_feature=None,
     ):
         super(MGSTGNN, self).__init__()
         assert num_input_dim <= input_dim
@@ -117,7 +99,7 @@ class MGSTGNN(nn.Module):
         self.embed_dim = embed_dim
         self.num_grus = num_grus
         self.encoder = Encoder(num_nodes, batch_size, periods_embedding_dim, weekend_embedding_dim, input_dim, periods,
-                               weekend, embed_dim, in_steps, node_feature)
+                               weekend, embed_dim, in_steps)
 
         self.predictor = DSTRNN(num_nodes, num_input_dim, rnn_units, embed_dim, num_grus, in_steps, dim_out=output_dim,
                                 use_back=use_back,conv_steps=predict_time)
@@ -271,7 +253,7 @@ class Network(nn.Module):
         self.mgstgnn = MGSTGNN(args.num_nodes,args.batch_size,args.input_dim,args.rnn_units,args.output_dim,args.num_grus,args.embed_dim,
             in_steps=args.in_steps,out_steps=args.out_steps,predict_time=args.predict_time,use_back=args.use_back,
             periods=args.periods,weekend=args.weekend,periods_embedding_dim=args.periods_embedding_dim,
-            weekend_embedding_dim=args.weekend_embedding_dim,num_input_dim=args.num_input_dim,node_feature=args.node_feature)
+            weekend_embedding_dim=args.weekend_embedding_dim,num_input_dim=args.num_input_dim)
     def forward(self,x):
 
         out = self.mgstgnn(x)
@@ -344,7 +326,6 @@ if __name__ == "__main__":
     from utils.util import init_seed
     init_seed(args.seed)
     args.num_grus = [int(i) for i in list(args.num_grus.split(','))]
-    args.node_feature = None
     network = Network(args)
     # network = DDGCRN(307,1,64,1,2,10,12,12,1)
     summary(network, [args.batch_size, args.in_steps, args.num_nodes, args.input_dim])
