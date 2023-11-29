@@ -18,6 +18,7 @@ class Encoder(nn.Module):
             weekend=7,
             embed_dim=12,
             in_steps=12,
+            node_feature=None,
     ):
         super(Encoder, self).__init__()
 
@@ -30,6 +31,7 @@ class Encoder(nn.Module):
         self.weekend_embedding_dim = weekend_embedding_dim
         self.in_steps = in_steps
         self.input_dim = input_dim
+        self.node_feature = node_feature
         # period的embedding
         if periods_embedding_dim>0:
             self.periods_embedding = nn.Embedding(periods, periods_embedding_dim)
@@ -88,6 +90,7 @@ class MGSTGNN(nn.Module):
             periods_embedding_dim=12,
             weekend_embedding_dim=12,
             num_input_dim=1,
+            node_feature=None,
     ):
         super(MGSTGNN, self).__init__()
         assert num_input_dim <= input_dim
@@ -101,7 +104,7 @@ class MGSTGNN(nn.Module):
         self.embed_dim = embed_dim
         self.num_grus = num_grus
         self.encoder = Encoder(num_nodes, batch_size, periods_embedding_dim, weekend_embedding_dim, input_dim, periods,
-                               weekend, embed_dim, in_steps)
+                               weekend, embed_dim, in_steps, node_feature)
 
         self.predictor = DSTRNN(num_nodes, num_input_dim, rnn_units, embed_dim, num_grus, in_steps, dim_out=output_dim,
                                 use_back=use_back,conv_steps=predict_time)
@@ -255,7 +258,7 @@ class Network(nn.Module):
         self.mgstgnn = MGSTGNN(args.num_nodes,args.batch_size,args.input_dim,args.rnn_units,args.output_dim,args.num_grus,args.embed_dim,
             in_steps=args.in_steps,out_steps=args.out_steps,predict_time=args.predict_time,use_back=args.use_back,
             periods=args.periods,weekend=args.weekend,periods_embedding_dim=args.periods_embedding_dim,
-            weekend_embedding_dim=args.weekend_embedding_dim,num_input_dim=args.num_input_dim,)
+            weekend_embedding_dim=args.weekend_embedding_dim,num_input_dim=args.num_input_dim,node_feature=args.node_feature)
     def forward(self,x):
 
         out = self.mgstgnn(x)
@@ -328,6 +331,7 @@ if __name__ == "__main__":
     from utils.util import init_seed
     init_seed(args.seed)
     args.num_grus = [int(i) for i in list(args.num_grus.split(','))]
+    args.node_feature = None
     network = Network(args)
     # network = DDGCRN(307,1,64,1,2,10,12,12,1)
     summary(network, [args.batch_size, args.in_steps, args.num_nodes, args.input_dim])

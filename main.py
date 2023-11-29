@@ -15,7 +15,7 @@ from model.MGSTGNN import Network
 
 from trainer import Trainer
 from utils.util import init_seed
-from utils.dataloader import get_dataloader_pems
+from utils.dataloader import get_dataloader_pems, get_adj_dis_matrix, get_node_feature
 from utils.util import print_model_parameters
 import warnings
 warnings.filterwarnings('ignore')
@@ -123,6 +123,11 @@ if torch.cuda.is_available():
     torch.cuda.set_device(int(args.device[5]))
 else:
     args.device = 'cpu'
+
+args.node_feature = None
+if args.dataset.lower() == 'pems03':
+    node_feature = get_node_feature(args1.dataset,args.num_nodes)
+    args.node_feature = torch.Tensor(node_feature)
 
 #init model
 model = Network(args)
