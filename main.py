@@ -9,7 +9,7 @@ from model.MGSTGNN import Network
 
 from trainer import Trainer
 from utils.util import init_seed
-from utils.dataloader import get_dataloader_pems
+from utils.dataloader import get_dataloader_pems,get_adj_dis_matrix
 from utils.util import print_model_parameters
 import warnings
 
@@ -49,7 +49,7 @@ def init_model(model):
 
 #parser
 args = argparse.ArgumentParser(description='arguments')
-args.add_argument('--dataset', default='PEMS07', type=str)
+args.add_argument('--dataset', default='PEMS03', type=str)
 args.add_argument('--mode', default='test', type=str)
 args.add_argument('--device', default='cuda:0', type=str, help='indices of GPUs')
 args.add_argument('--debug', default='False', type=eval)
@@ -113,6 +113,7 @@ args.add_argument('--log_dir', default='./', type=str)
 args.add_argument('--log_step', default=config['log']['log_step'], type=int)
 args.add_argument('--plot', default=config['log']['plot'], type=eval)
 args = args.parse_args()
+# args.adj,args.dis = get_adj_dis_matrix(args1.dataset,'./dataset/{}/{}.csv'.format(args1.dataset,args1.dataset),args.num_nodes)
 args.num_grus = [int(i) for i in list(args.num_grus.split(','))]
 
 if args.random:
