@@ -101,7 +101,7 @@ class MGSTGNN(nn.Module):
         self.encoder = Encoder(num_nodes, batch_size, periods_embedding_dim, weekend_embedding_dim, input_dim, periods,
                                weekend, embed_dim, in_steps)
 
-        self.predictor = DSTRNN(num_nodes, num_input_dim, rnn_units, embed_dim, num_grus, in_steps, dim_out=output_dim,
+        self.predictor = DSTRNN(num_nodes, num_input_dim, rnn_units, embed_dim, num_grus, in_steps, out_steps, dim_out=output_dim,
                                 use_back=use_back,conv_steps=predict_time)
 
         self.predict_time = predict_time
@@ -114,7 +114,7 @@ class MGSTGNN(nn.Module):
         return output
 
 class DSTRNN(nn.Module):
-    def __init__(self, node_num, dim_in, hidden_dim, embed_dim, num_grus, in_steps=12, dim_out=1,
+    def __init__(self, node_num, dim_in, hidden_dim, embed_dim, num_grus, in_steps=12, out_steps=12, dim_out=1,
             use_back=False, conv_steps=2, conv_bias=True):
         super(DSTRNN, self).__init__()
         assert len(num_grus) >= 1, 'At least one GRU layer in the Encoder.'
@@ -123,6 +123,7 @@ class DSTRNN(nn.Module):
         self.hidden_dim = hidden_dim
         self.use_back = use_back
         self.num_grus = num_grus
+        self.out_steps = out_steps
         self.grus = nn.ModuleList([
             GRUCell(node_num, dim_in, hidden_dim, embed_dim)
             for _ in range(sum(num_grus))
@@ -135,7 +136,7 @@ class DSTRNN(nn.Module):
         # predict output
         self.predictors = nn.ModuleList([
              # nn.Linear(hidden_dim,dim_cat)
-             nn.Conv2d(conv_steps, dim_out * in_steps, kernel_size=(1,hidden_dim), bias=conv_bias)
+             nn.Conv2d(conv_steps, dim_out * out_steps, kernel_size=(1,hidden_dim), bias=conv_bias)
              for _ in num_grus
         ])
         # skip
@@ -178,7 +179,7 @@ class DSTRNN(nn.Module):
             index1 += self.num_grus[i]
             current_inputs = torch.stack(inner_states, dim=1) # [B, T, N, D]
             current_inputs = self.dropouts[i](current_inputs[:, -self.conv_steps:, :, :])
-            outputs.append(self.predictors[i](current_inputs).reshape(batch_size,time_stamps,node_num,-1))
+            outputs.append(self.predictors[i](current_inputs).reshape(batch_size,self.out_steps,node_num,-1))
             if i < len(self.num_grus)-1:
                 current_inputs = skip - self.skips[i](current_inputs).reshape(batch_size,time_stamps,node_num,-1)
 
