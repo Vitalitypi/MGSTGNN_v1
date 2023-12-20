@@ -5,11 +5,11 @@ import torch.nn as nn
 import argparse
 import configparser
 from datetime import datetime
-from model.MGSTGNN import Network
+from model.MGSTGNN import Network,TrendFormer
 
 from trainer import Trainer
 from utils.util import init_seed
-from utils.dataloader import get_dataloader_pems,get_adj_dis_matrix
+from utils.dataloader import get_dataloader_pems
 from utils.util import print_model_parameters
 import warnings
 
@@ -88,6 +88,7 @@ args.add_argument('--periods', default=config['model']['periods'], type=int)
 args.add_argument('--weekend', default=config['model']['weekend'], type=int)
 args.add_argument('--predict_time', default=config['model']['predict_time'], type=int)
 args.add_argument('--use_back', default=config['model']['use_back'], type=eval)
+args.add_argument('--pre_train', default=False, type=eval)
 
 #train
 args.add_argument('--loss_func', default=config['train']['loss_func'], type=str)
@@ -113,7 +114,6 @@ args.add_argument('--log_dir', default='./', type=str)
 args.add_argument('--log_step', default=config['log']['log_step'], type=int)
 args.add_argument('--plot', default=config['log']['plot'], type=eval)
 args = args.parse_args()
-# args.adj,args.dis = get_adj_dis_matrix(args1.dataset,'./dataset/{}/{}.csv'.format(args1.dataset,args1.dataset),args.num_nodes)
 args.num_grus = [int(i) for i in list(args.num_grus.split(','))]
 
 if args.random:
@@ -125,9 +125,12 @@ if torch.cuda.is_available():
 else:
     args.device = 'cpu'
 
-
 #init model
-model = Network(args)
+if args.pre_train:
+    model = TrendFormer(args.num_nodes,args.batch_size,args.input_dim,args.output_dim,args.periods,
+       args.weekend,args.periods_embedding_dim,args.weekend_embedding_dim,args.embed_dim,args.in_steps,args.out_steps,pre_train=args.pre_train)
+else:
+    model = Network(args)
 model = model.to(args.device)
 model = init_model(model)
 

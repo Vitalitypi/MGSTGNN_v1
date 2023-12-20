@@ -7,13 +7,14 @@ import datetime as dt
 from datetime import datetime
 from utils.norm import StandardScaler
 
-def get_tod(periods,time_stamps,num_nodes):
-    tod = np.zeros((time_stamps, num_nodes, 1))
+def get_tod(periods,time_stamps,num_nodes,out_steps=12):
+    tod = np.zeros((time_stamps, num_nodes, 2))
     for t in range(time_stamps):
         tod[t, :, 0] = np.ones(num_nodes) * ((t % periods)/periods)
+        tod[t, :, 1] = np.ones(num_nodes) * (((t + out_steps) % periods)/periods)
     return tod
 
-def get_dow(dataset,time_stamps,num_nodes,periods):
+def get_tod_dow(dataset,time_stamps,num_nodes,periods,out_steps=12):
     day_dict = {
         'PEMS03':'2018-09-01',
         'PEMS04':'2018-01-01',
@@ -21,14 +22,22 @@ def get_dow(dataset,time_stamps,num_nodes,periods):
         'PEMS08':'2016-07-01'
     }
     start_date = datetime.strptime(day_dict[dataset], "%Y-%m-%d")
-    dow = np.zeros((time_stamps,num_nodes,1))
+    time_feature = np.zeros((time_stamps,num_nodes,4))
     current_date = start_date
-    for i in range(time_stamps//periods):
-        date_info = np.ones((periods,num_nodes))*(current_date.weekday())
-        dow[i*periods:(i+1)*periods,:,0] = date_info
+    for t in range(time_stamps):
 
-        current_date = current_date + dt.timedelta(days=1)
-    return dow
+        time_feature[t, :, 0] = np.ones(num_nodes) * ((t % periods)/periods)
+        time_feature[t, :, 2] = np.ones(num_nodes) * (((t + out_steps) % periods)/periods)
+
+        date_info = np.ones((num_nodes))*(current_date.weekday())
+        time_feature[t, :, 1] = date_info
+
+        future_date = current_date + dt.timedelta(hours=1)
+        date_info = np.ones((num_nodes))*(future_date.weekday())
+        time_feature[t, :, 3] = date_info
+
+        current_date = current_date + dt.timedelta(minutes=5)
+    return time_feature
 
 
 # For PEMS03/04/07/08 Datasets
@@ -38,10 +47,10 @@ def get_dataloader_pems(dataset, batch_size=64, val_ratio=0.2, test_ratio=0.2, i
     # print the shape of data
     print(data.shape)
     time_stamps, num_nodes, _ = data.shape
-    tods = get_tod(periods,time_stamps,num_nodes)
-    dows = get_dow(dataset,time_stamps,num_nodes,periods)
+    # tods = get_tod(periods,time_stamps,num_nodes)
+    time_features = get_tod_dow(dataset,time_stamps,num_nodes,periods)
     # concatenate all data
-    data = np.concatenate([data,tods,dows],axis=-1)
+    data = np.concatenate([data,time_features],axis=-1)
 
     # normalize data(only normalize the first dimension data)
     mean = data[..., 0].mean()
