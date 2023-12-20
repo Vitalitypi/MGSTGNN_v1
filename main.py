@@ -79,6 +79,7 @@ args.add_argument('--num_input_dim', default=config['model']['num_input_dim'], t
 
 args.add_argument('--periods_embedding_dim', default=config['model']['periods_embedding_dim'], type=int)
 args.add_argument('--weekend_embedding_dim', default=config['model']['weekend_embedding_dim'], type=int)
+args.add_argument('--input_embedding_dim', default=config['model']['input_embedding_dim'], type=int)
 
 args.add_argument('--output_dim', default=config['model']['output_dim'], type=int)
 args.add_argument('--embed_dim', default=config['model']['embed_dim'], type=int)

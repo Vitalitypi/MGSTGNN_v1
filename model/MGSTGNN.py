@@ -118,24 +118,25 @@ class TrendFormer(nn.Module):
             output_dim=1,
             periods=288,
             weekend=7,
-            periods_embedding_dim=12,
-            weekend_embedding_dim=12,
+            periods_embedding_dim=6,
+            weekend_embedding_dim=6,
             embed_dim=12,              #GNN嵌入维度
             in_steps=16,            #输入的时间长度
             out_steps=12,
-            input_embedding_dim=14,
-            num_layers=4,
+            input_embedding_dim=8,
+            num_layers=3,
             feed_forward_dim=256,
             num_heads=4,
             pre_train=False,
                  ):
         super(TrendFormer, self).__init__()
+        assert (input_embedding_dim + periods_embedding_dim * 2 + weekend_embedding_dim * 2)%num_heads==0
         self.in_steps = in_steps
         self.out_steps = out_steps
         self.num_nodes = num_nodes
         self.output_dim = output_dim
         self.pre_train = pre_train
-        self.dim_hidden = input_embedding_dim + periods_embedding_dim * 2 + weekend_embedding_dim * 2 + embed_dim
+        self.dim_hidden = input_embedding_dim + periods_embedding_dim * 2 + weekend_embedding_dim * 2
         self.encoder = Encoder(num_nodes, batch_size, periods_embedding_dim, weekend_embedding_dim, input_dim, periods,
                                weekend, embed_dim, in_steps, input_embedding_dim)
         self.attn_t = nn.ModuleList(
@@ -156,13 +157,10 @@ class TrendFormer(nn.Module):
         '''
         residual = x
         batch_size = x.shape[0]
-        embeddings,encoding = self.encoder(x)
-        node_emb,time_emb = embeddings[0],embeddings[1]
-        st_emb     = embeddings[0].unsqueeze(0).unsqueeze(0) + embeddings[1].unsqueeze(-2)      # b,t,n,d
-        x          = torch.cat((encoding,st_emb),dim=-1)
+        encoding = self.encoder(x)
         for attn in self.attn_t:
-            x = attn(x, dim=1)
-        out = x.transpose(1, 2)  # (batch_size, num_nodes, in_steps, model_dim)
+            encoding = attn(encoding, dim=1)
+        out = encoding.transpose(1, 2)  # (batch_size, num_nodes, in_steps, model_dim)
         out = out.reshape(
                 batch_size, self.num_nodes, self.in_steps * self.dim_hidden
             )
@@ -177,7 +175,7 @@ class TrendFormer(nn.Module):
                 outputs.append(base_state+out[:,i])
             out = torch.stack(outputs,dim=1)
             return out
-        return out,[node_emb,time_emb],encoding
+        return out,encoding
 
 class Encoder(nn.Module):
     def __init__(
@@ -214,8 +212,6 @@ class Encoder(nn.Module):
         # 每周的embedding
         if weekend_embedding_dim>0:
             self.weekend_embedding = nn.Embedding(weekend, weekend_embedding_dim)
-        self.node_embeddings = nn.Parameter(torch.randn(num_nodes, embed_dim), requires_grad=True)
-        self.time_embeddings = nn.Parameter(torch.randn(batch_size,in_steps, embed_dim), requires_grad=True)
     def forward(self, x):
         '''
         获取当前的动态图
@@ -224,9 +220,6 @@ class Encoder(nn.Module):
         :return:
         shape:b,to,n,do
         '''
-        batch_size = x.shape[0]
-        node_embedding = self.node_embeddings
-        time_embedding = self.time_embeddings[:batch_size]
 
         features = []
 
@@ -240,12 +233,12 @@ class Encoder(nn.Module):
             )
             features.append(periods_emb)
             # time_embedding = torch.mul(time_embedding, periods_emb[:,:,0])
-
-            periods = x[..., 3]
-            periods_emb = self.periods_embedding(
-                (periods*self.periods).long()
-            )
-            features.append(periods_emb)
+            if self.input_dim > 3:
+                periods = x[..., 3]
+                periods_emb = self.periods_embedding(
+                    (periods*self.periods).long()
+                )
+                features.append(periods_emb)
             # time_embedding = torch.mul(time_embedding, periods_emb[:,:,0])
 
         if self.weekend_embedding_dim > 0:
@@ -255,17 +248,16 @@ class Encoder(nn.Module):
             )  # (batch_size, in_steps, num_nodes, weekend_embedding_dim)
             features.append(weekend_emb)
             # time_embedding = torch.mul(time_embedding, weekend_emb[:,:,0])
-
-            weekend = x[..., 4]
-            weekend_emb = self.weekend_embedding(
-                weekend.long()
-            )  # (batch_size, in_steps, num_nodes, weekend_embedding_dim)
-            features.append(weekend_emb)
+            if self.input_dim > 4:
+                weekend = x[..., 4]
+                weekend_emb = self.weekend_embedding(
+                    weekend.long()
+                )  # (batch_size, in_steps, num_nodes, weekend_embedding_dim)
+                features.append(weekend_emb)
             # time_embedding = torch.mul(time_embedding, weekend_emb[:,:,0])
 
-        encoding = torch.cat(features,dim=-1)          # 4 * dim_embed + dim_input_emb + 1
-        embeddings = [node_embedding,time_embedding]
-        return embeddings,encoding
+        encoding = torch.cat(features,dim=-1)          # 4 * dim_embed + dim_input_emb
+        return encoding
 
 class MGSTGNN(nn.Module):
     def __init__(
@@ -283,9 +275,9 @@ class MGSTGNN(nn.Module):
             use_back=False,
             periods=288,
             weekend=7,
-            periods_embedding_dim=12,
-            weekend_embedding_dim=12,
-            input_embedding_dim=14,
+            periods_embedding_dim=6,
+            weekend_embedding_dim=6,
+            input_embedding_dim=8,
             num_input_dim=1,
     ):
         super(MGSTGNN, self).__init__()
@@ -299,10 +291,18 @@ class MGSTGNN(nn.Module):
         self.out_steps = out_steps
         self.embed_dim = embed_dim
         self.num_grus = num_grus
-        self.dim_hidden = input_embedding_dim + periods_embedding_dim * 2 + weekend_embedding_dim * 2 + embed_dim
-        self.trendFormer = TrendFormer(num_nodes,batch_size,input_dim,output_dim,periods,
-                                       weekend,periods_embedding_dim,weekend_embedding_dim,embed_dim,in_steps,out_steps,input_embedding_dim=input_embedding_dim)
-        self.predictor = DSTRNN(num_nodes, self.dim_hidden, rnn_units, embed_dim, num_grus, in_steps, out_steps, dim_out=output_dim,
+        self.input_embedding_dim = input_embedding_dim
+        self.periods_embedding_dim = periods_embedding_dim
+        self.weekend_embedding_dim = weekend_embedding_dim
+        # self.dim_hidden = input_embedding_dim + periods_embedding_dim * 2 + weekend_embedding_dim * 2
+        self.encoder = Encoder(num_nodes, batch_size, periods_embedding_dim, weekend_embedding_dim, input_dim, periods,
+                               weekend, embed_dim, in_steps, input_embedding_dim)
+        self.node_embeddings = nn.Parameter(torch.randn(num_nodes, embed_dim), requires_grad=True)
+        self.time_embeddings = nn.Parameter(torch.randn(batch_size,in_steps, embed_dim), requires_grad=True)
+
+        # self.trendFormer = TrendFormer(num_nodes,batch_size,input_dim,output_dim,periods,
+        #                                weekend,periods_embedding_dim,weekend_embedding_dim,embed_dim,in_steps,out_steps,input_embedding_dim=input_embedding_dim)
+        self.predictor = DSTRNN(num_nodes, num_input_dim, rnn_units, embed_dim, num_grus, in_steps, out_steps, dim_out=output_dim,
                         use_back=use_back,conv_steps=predict_time)
         self.predict_time = predict_time
         # self.load_pre_trained_model()
@@ -310,18 +310,23 @@ class MGSTGNN(nn.Module):
         checkpoint = torch.load('../pre_trained/PEMS08/best_model.pth')
 
         self.trendFormer.load_state_dict(checkpoint)
-        # for param in self.trendFormer.parameters():
-            # param.requires_grad = False
+        for param in self.trendFormer.parameters():
+            param.requires_grad = False
     def forward(self, source):
         batch_size = source.shape[0]
-        trend,embeddings,encoding = self.trendFormer(source)
-
-        st_emb     = embeddings[0].unsqueeze(0).unsqueeze(0) + embeddings[1].unsqueeze(-2)      # b,t,n,d
-        inp          = torch.cat((encoding,st_emb),dim=-1)
-
+        # trend,encoding = self.trendFormer(source)
+        encoding = self.encoder(source)
+        node_embedding = self.node_embeddings
+        time_embedding = self.time_embeddings[:batch_size]
+        if self.periods_embedding_dim > 0:
+            emb_periods = encoding[...,self.input_embedding_dim:self.input_embedding_dim+self.periods_embedding_dim]
+            time_embedding = torch.mul(time_embedding, emb_periods[:,:,0])
+        if self.weekend_embedding_dim>0:
+            emb_weekend = encoding[...,self.input_embedding_dim+self.periods_embedding_dim:self.input_embedding_dim+self.periods_embedding_dim+self.weekend_embedding_dim]
+            time_embedding = torch.mul(time_embedding, emb_weekend[:,:,0])
         init_state = self.predictor.init_hidden(batch_size)#,self.num_node,self.hidden_dim
-        _, output = self.predictor(inp, init_state, embeddings) # B, T, N, hidden
-        return output + trend
+        _, output = self.predictor(source[...,:self.num_input_dim], init_state, [node_embedding, time_embedding]) # B, T, N, hidden
+        return output
 
 class DSTRNN(nn.Module):
     def __init__(self, node_num, dim_in, hidden_dim, embed_dim, num_grus, in_steps=12, out_steps=12, dim_out=1,
@@ -464,7 +469,7 @@ class Network(nn.Module):
         self.mgstgnn = MGSTGNN(args.num_nodes,args.batch_size,args.input_dim,args.rnn_units,args.output_dim,args.num_grus,args.embed_dim,
                 in_steps=args.in_steps,out_steps=args.out_steps,predict_time=args.predict_time,use_back=args.use_back,
                 periods=args.periods,weekend=args.weekend,periods_embedding_dim=args.periods_embedding_dim,
-                weekend_embedding_dim=args.weekend_embedding_dim,num_input_dim=args.num_input_dim)
+                weekend_embedding_dim=args.weekend_embedding_dim,input_embedding_dim=args.input_embedding_dim,num_input_dim=args.num_input_dim)
     def forward(self,x):
 
         out = self.mgstgnn(x)
@@ -501,6 +506,8 @@ if __name__ == "__main__":
 
     args.add_argument('--periods_embedding_dim', default=config['model']['periods_embedding_dim'], type=int)
     args.add_argument('--weekend_embedding_dim', default=config['model']['weekend_embedding_dim'], type=int)
+    args.add_argument('--input_embedding_dim', default=config['model']['input_embedding_dim'], type=int)
+
     args.add_argument('--output_dim', default=config['model']['output_dim'], type=int)
     args.add_argument('--embed_dim', default=config['model']['embed_dim'], type=int)
     args.add_argument('--rnn_units', default=config['model']['rnn_units'], type=int)
